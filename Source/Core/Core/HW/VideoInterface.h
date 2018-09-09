@@ -242,8 +242,9 @@ union PictureConfigurationRegister
   u16 Hex;
   struct
   {
-    u16 STD : 8;
-    u16 WPL : 7;
+    u16 STD : 8; // number of pixels of stride div 16 (distance between two lines of data)
+    u16 WPL : 7; // number of pixels of line div 16
+                 // if STD > WPL there is extra data between two lines, eg. in interlaced video mode of internally progressive rendering games
     u16 : 1;
   };
 };
