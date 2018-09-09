@@ -686,7 +686,7 @@ static void BeginField(FieldType field, u64 ticks)
     xfbAddr = GetXFBAddressTop();
   }
 
-  if (potentially_interlaced_xfb && interlaced_video_mode && g_ActiveConfig.bForceProgressive)
+  if (false && potentially_interlaced_xfb && interlaced_video_mode && g_ActiveConfig.bForceProgressive)
   {
     // Strictly speaking, in interlaced mode, we're only supposed to read
     // half of the lines of the XFB, and use that to display a field; the
