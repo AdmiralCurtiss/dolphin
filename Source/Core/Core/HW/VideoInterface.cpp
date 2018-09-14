@@ -7,6 +7,7 @@
 #include <array>
 #include <cmath>
 #include <cstddef>
+#include <iostream>
 
 #include "Common/ChunkFile.h"
 #include "Common/CommonTypes.h"
@@ -665,6 +666,52 @@ static void LogField(FieldType field, u32 xfb_address)
 
 static void BeginField(FieldType field, u64 ticks)
 {
+  {
+    std::ostringstream oss;
+    oss.imbue(std::locale("C"));
+    oss << (field == FieldType::Even ? "E " : "O ");
+    oss << "Verti_" << std::setfill('0') << std::hex << std::setw(4) << m_VerticalTimingRegister.Hex << "; ";
+    oss << "Displ_" << std::setfill('0') << std::hex << std::setw(4) << m_DisplayControlRegister.Hex << "; ";
+    oss << "HTim0_" << std::setfill('0') << std::hex << std::setw(8) << m_HTiming0.Hex << "; ";
+    oss << "HTim1_" << std::setfill('0') << std::hex << std::setw(8) << m_HTiming1.Hex << "; ";
+    oss << "VBlaO_" << std::setfill('0') << std::hex << std::setw(8) << m_VBlankTimingOdd.Hex << "; ";
+    oss << "VBlaE_" << std::setfill('0') << std::hex << std::setw(8) << m_VBlankTimingEven.Hex << "; ";
+    oss << "BursO_" << std::setfill('0') << std::hex << std::setw(8) << m_BurstBlankingOdd.Hex << "; ";
+    oss << "BursE_" << std::setfill('0') << std::hex << std::setw(8) << m_BurstBlankingEven.Hex << "; ";
+  //oss << "XFBIT_" << std::setfill('0') << std::hex << std::setw(8) << m_XFBInfoTop.Hex << "; ";
+  //oss << "XFBIB_" << std::setfill('0') << std::hex << std::setw(8) << m_XFBInfoBottom.Hex << "; ";
+    oss << "3DFBT_" << std::setfill('0') << std::hex << std::setw(8) << m_3DFBInfoTop.Hex << "; ";
+    oss << "3DFBB_" << std::setfill('0') << std::hex << std::setw(8) << m_3DFBInfoBottom.Hex << "; ";
+    oss << "Inte0_" << std::setfill('0') << std::hex << std::setw(8) << m_InterruptRegister[0].Hex << "; ";
+    oss << "Inte1_" << std::setfill('0') << std::hex << std::setw(8) << m_InterruptRegister[1].Hex << "; ";
+    oss << "Inte2_" << std::setfill('0') << std::hex << std::setw(8) << m_InterruptRegister[2].Hex << "; ";
+    oss << "Inte3_" << std::setfill('0') << std::hex << std::setw(8) << m_InterruptRegister[3].Hex << "; ";
+    oss << "Latc0_" << std::setfill('0') << std::hex << std::setw(8) << m_LatchRegister[0].Hex << "; ";
+    oss << "Latc1_" << std::setfill('0') << std::hex << std::setw(8) << m_LatchRegister[1].Hex << "; ";
+    oss << "Pictu_" << std::setfill('0') << std::hex << std::setw(4) << m_PictureConfiguration.Hex << "; ";
+    oss << "Horiz_" << std::setfill('0') << std::hex << std::setw(4) << m_HorizontalScaling.Hex << "; ";
+    oss << "FCoe0_" << std::setfill('0') << std::hex << std::setw(8) << m_FilterCoefTables.Tables02[0].Hex << "; ";
+    oss << "FCoe1_" << std::setfill('0') << std::hex << std::setw(8) << m_FilterCoefTables.Tables02[1].Hex << "; ";
+    oss << "FCoe2_" << std::setfill('0') << std::hex << std::setw(8) << m_FilterCoefTables.Tables02[2].Hex << "; ";
+    oss << "FCoe3_" << std::setfill('0') << std::hex << std::setw(8) << m_FilterCoefTables.Tables36[0].Hex << "; ";
+    oss << "FCoe4_" << std::setfill('0') << std::hex << std::setw(8) << m_FilterCoefTables.Tables36[1].Hex << "; ";
+    oss << "FCoe5_" << std::setfill('0') << std::hex << std::setw(8) << m_FilterCoefTables.Tables36[2].Hex << "; ";
+    oss << "FCoe6_" << std::setfill('0') << std::hex << std::setw(8) << m_FilterCoefTables.Tables36[3].Hex << "; ";
+    oss << "UnkAA_" << std::setfill('0') << std::hex << std::setw(8) << m_UnkAARegister << "; ";
+    oss << "Clock_" << std::setfill('0') << std::hex << std::setw(4) << m_Clock << "; ";
+    oss << "DTVSt_" << std::setfill('0') << std::hex << std::setw(4) << m_DTVStatus.Hex << "; ";
+    oss << "FBWid_" << std::setfill('0') << std::hex << std::setw(4) << m_FBWidth.Hex << "; ";
+    oss << "Borde_" << std::setfill('0') << std::hex << std::setw(8) << m_BorderHBlank.Hex << "; ";
+    static std::string lastEven;
+    static std::string lastOdd;
+    std::string& last = field == FieldType::Even ? lastEven : lastOdd;
+    if (last != oss.str())
+    {
+      INFO_LOG(VIDEOINTERFACE, oss.str().c_str());
+      last = oss.str();
+    }
+  }
+
   // Could we fit a second line of data in the stride?
   bool potentially_interlaced_xfb =
       ((m_PictureConfiguration.STD / m_PictureConfiguration.WPL) == 2);
@@ -686,7 +733,8 @@ static void BeginField(FieldType field, u64 ticks)
     xfbAddr = GetXFBAddressTop();
   }
 
-  if (false && potentially_interlaced_xfb && interlaced_video_mode && g_ActiveConfig.bForceProgressive)
+  if (false && potentially_interlaced_xfb && interlaced_video_mode &&
+      g_ActiveConfig.bForceProgressive)
   {
     // Strictly speaking, in interlaced mode, we're only supposed to read
     // half of the lines of the XFB, and use that to display a field; the
