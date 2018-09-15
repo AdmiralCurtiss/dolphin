@@ -885,7 +885,7 @@ void Renderer::FinishFrameData()
 void Renderer::RunFrameDumps()
 {
   Common::SetCurrentThreadName("FrameDumping");
-  bool dump_to_avi = !g_ActiveConfig.bDumpFramesAsImages;
+  bool dump_to_avi = false;  //! g_ActiveConfig.bDumpFramesAsImages;
   bool frame_dump_started = false;
 
 // If Dolphin was compiled without libav, we only support dumping to images.
