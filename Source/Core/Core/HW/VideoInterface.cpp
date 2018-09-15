@@ -733,7 +733,7 @@ static void BeginField(FieldType field, u64 ticks)
     xfbAddr = GetXFBAddressTop();
   }
 
-  if (false && potentially_interlaced_xfb && interlaced_video_mode &&
+  if (/*false &&*/ potentially_interlaced_xfb && interlaced_video_mode &&
       g_ActiveConfig.bForceProgressive)
   {
     // Strictly speaking, in interlaced mode, we're only supposed to read
