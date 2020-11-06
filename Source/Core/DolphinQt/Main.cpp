@@ -38,6 +38,8 @@
 #include "UICommon/CommandLineParse.h"
 #include "UICommon/UICommon.h"
 
+#include "UpdaterCommon/UpdaterCommon.h"
+
 static bool QtMsgAlertHandler(const char* caption, const char* text, bool yes_no,
                               Common::MsgType style)
 {
@@ -105,6 +107,9 @@ int main(int argc, char* argv[])
 #else
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine, int nCmdShow)
 {
+  std::string dummy_path = GetUpdaterPath();
+  dummy_path += ' ';
+
   std::vector<std::string> utf8_args = CommandLineToUtf8Argv(GetCommandLineW());
   const int utf8_argc = static_cast<int>(utf8_args.size());
   std::vector<char*> utf8_argv(utf8_args.size());

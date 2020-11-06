@@ -14,3 +14,4 @@
 #include "Common/CommonTypes.h"
 
 bool RunUpdater(std::vector<std::string> args);
+std::string GetUpdaterPath();

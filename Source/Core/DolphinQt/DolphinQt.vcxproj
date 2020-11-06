@@ -355,6 +355,9 @@
     <ProjectReference Include="$(CoreDir)UICommon\UICommon.vcxproj">
       <Project>{604C8368-F34A-4D55-82C8-CC92A0C13254}</Project>
     </ProjectReference>
+    <ProjectReference Include="$(CoreDir)UpdaterCommon\UpdaterCommon.vcxproj">
+      <Project>{B001D13E-7EAB-4689-842D-801E5ACFFAC5}</Project>
+    </ProjectReference>
     <ProjectReference Include="$(CoreDir)VideoBackends\D3D\D3D.vcxproj">
       <Project>{96020103-4ba5-4fd2-b4aa-5b6d24492d4e}</Project>
     </ProjectReference>

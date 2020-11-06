@@ -780,3 +780,8 @@ bool RunUpdater(std::vector<std::string> args)
 
   return true;
 }
+
+std::string GetUpdaterPath()
+{
+  return "dummy_path/Updater.exe";
+}
