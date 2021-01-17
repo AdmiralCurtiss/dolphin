@@ -651,7 +651,7 @@ void UpdateDevices()
 
   // Hinting NetPlay that all controllers will be polled in
   // succession, in order to optimize networking
-  NetPlay::SetSIPollBatching(true);
+  NetPlay::SetSIPollBatching(false);
 
   // Update inputs at the rate of SI
   // Typically 120hz but is variable
