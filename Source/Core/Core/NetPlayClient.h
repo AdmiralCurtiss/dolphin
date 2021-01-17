@@ -238,6 +238,7 @@ private:
   void ComputeMD5(const SyncIdentifier& sync_identifier);
   void DisplayPlayersPing();
   u32 GetPlayersMaxPing() const;
+  void AdjustPadMapToNewGolfer();
 
   bool m_is_connected = false;
   ConnectionState m_connection_state = ConnectionState::Failure;

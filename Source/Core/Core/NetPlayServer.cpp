@@ -739,10 +739,10 @@ unsigned int NetPlayServer::OnData(sf::Packet& packet, Client& player)
 
       // If the data is not from the correct player,
       // then disconnect them.
-      if (m_pad_map.at(map) != player.pid)
-      {
-        return 1;
-      }
+      //if (m_pad_map.at(map) != player.pid)
+      //{
+      //  return 1;
+      //}
 
       GCPadStatus pad;
       packet >> pad.button >> pad.analogA >> pad.analogB >> pad.stickX >> pad.stickY >>
