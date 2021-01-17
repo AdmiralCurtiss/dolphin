@@ -1801,7 +1801,7 @@ void NetPlayClient::OnConnectFailed(u8 reason)
 }
 
 // called from ---CPU--- thread
-bool NetPlayClient::GetNetPads(const int pad_nb_in, const bool batching, GCPadStatus* pad_status)
+bool NetPlayClient::GetNetPads(const int pad_nb, const bool batching, GCPadStatus* pad_status)
 {
   // The interface for this is extremely silly.
   //
@@ -1829,38 +1829,6 @@ bool NetPlayClient::GetNetPads(const int pad_nb_in, const bool batching, GCPadSt
   // enabled, the poll is probably from MMIO, which can poll any
   // specific pad arbitrarily. In this case, we poll just that pad
   // and send it.
-
-  // pad_nb_in -> the actual controller the game wants to poll
-  // pad_nb -> the controller array index we instead want to read from
-
-  // in a standard cybercouch game with 2 players, we have
-  // m_pad_map[0] = 1 and m_pad_map[1] = 2
-  // if P1 is golfer we do nothing
-  // if != P1 is golfer, we:
-  // - if the game requests pad 0, give it pad (current golfer)
-  // - if the game requests pad (current golfer), give it pad 0
-  // - otherwise leave pad_nb alone
-
-  int pad_nb;
-  if (m_host_input_authority && m_current_golfer > 1)
-  {
-    if (pad_nb_in == 0)
-    {
-      pad_nb = m_current_golfer - 1;
-    }
-    else if (pad_nb_in == m_current_golfer - 1)
-    {
-      pad_nb = 0;
-    }
-    else
-    {
-      pad_nb = pad_nb_in;
-    }
-  }
-  else
-  {
-    pad_nb = pad_nb_in;
-  }
 
   // When here when told to so we don't deadlock in certain situations
   while (m_wait_on_input)
