@@ -2343,7 +2343,10 @@ void NetPlayClient::AdjustPadMapToNewGolfer()
   std::stable_sort(m_pad_map.begin(), m_pad_map.end(), [pid](const PlayerId& a, const PlayerId& b) {
     return (a == 0 ? 2 : a == pid ? 0 : 1) < (b == 0 ? 2 : b == pid ? 0 : 1);
   });
-  m_wiimote_map[0] = m_current_golfer;
+  if (m_wiimote_map[0] > 0)
+  {
+    m_wiimote_map[0] = m_current_golfer;
+  }
 
   WARN_LOG_FMT(NETPLAY, "m_pad_map after new golfer: {} {} {} {}", m_pad_map[0], m_pad_map[1],
                m_pad_map[2], m_pad_map[3]);
