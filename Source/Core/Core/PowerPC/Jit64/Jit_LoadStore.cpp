@@ -234,6 +234,8 @@ void Jit64::dcbx(UGeckoInstruction inst)
   INSTRUCTION_START
   JITDISABLE(bJITLoadStoreOff);
 
+  ERROR_LOG_FMT(DYNA_REC, "dcbx starts at: {}", fmt::ptr(GetWritableCodePtr()));
+
   X64Reg addr = RSCRATCH;
   X64Reg value = RSCRATCH2;
   RCOpArg Ra = inst.RA ? gpr.Use(inst.RA, RCMode::Read) : RCOpArg::Imm32(0);
@@ -282,6 +284,9 @@ void Jit64::dcbx(UGeckoInstruction inst)
 
   FixupBranch done = J(true);
   SwitchToNearCode();
+
+  ERROR_LOG_FMT(DYNA_REC, "dcbx ends at: {}", fmt::ptr(GetWritableCodePtr()));
+
   SetJumpTarget(done);
 }
 
