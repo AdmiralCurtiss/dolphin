@@ -244,6 +244,17 @@ void Jit64::dcbx(UGeckoInstruction inst)
   RCX64Reg effective_address = gpr.Scratch();
   RegCache::Realize(Ra, Rb, tmp, effective_address);
 
+  if (inst.RA)
+  {
+    ERROR_LOG_FMT(DYNA_REC, "Registers in use: {}, {}, {}, {}, {}, {}", addr, value,
+                  Ra.GetSimpleReg(), Rb.GetSimpleReg(), (X64Reg)tmp, (X64Reg)effective_address);
+  }
+  else
+  {
+    ERROR_LOG_FMT(DYNA_REC, "Registers in use: {}, {}, {}, {}, {}", addr, value, Rb.GetSimpleReg(),
+                  (X64Reg)tmp, (X64Reg)effective_address);
+  }
+
   // Translate effective address to physical address.
   MOV_sum(32, value, Ra, Rb);
   FixupBranch bat_lookup_failed;
