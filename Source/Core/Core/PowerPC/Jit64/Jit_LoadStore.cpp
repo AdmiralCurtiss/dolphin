@@ -233,6 +233,7 @@ void Jit64::dcbx(UGeckoInstruction inst)
 {
   INSTRUCTION_START
   JITDISABLE(bJITLoadStoreOff);
+  //FALLBACK_IF(true);
 
   ERROR_LOG_FMT(DYNA_REC, "dcbx starts at: {}", fmt::ptr(GetWritableCodePtr()));
 
@@ -275,7 +276,18 @@ void Jit64::dcbx(UGeckoInstruction inst)
   MOV(32, R(value), MComplex(tmp, value, SCALE_4, 0));
   SHR(32, R(addr), Imm8(5));
   BT(32, R(value), R(addr));
-  FixupBranch invalidate_needed = J_CC(CC_C, true);
+  //FixupBranch invalidate_needed = J_CC(CC_C, true);
+  FixupBranch invalidate_needed = J(true);
+
+  {
+    BitSet32 registersInUse = CallerSavedRegistersInUse();
+    registersInUse[X64Reg(tmp)] = false;
+    registersInUse[X64Reg(effective_address)] = false;
+    ABI_PushRegistersAndAdjustStack(registersInUse, 0);
+    MOV(32, R(ABI_PARAM1), R(effective_address));
+    ABI_CallFunction(JitInterface::InvalidateICacheVerify);
+    ABI_PopRegistersAndAdjustStack(registersInUse, 0);
+  }
 
   SwitchToFarCode();
   SetJumpTarget(invalidate_needed);

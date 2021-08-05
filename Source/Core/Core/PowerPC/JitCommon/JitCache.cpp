@@ -183,11 +183,45 @@ const u8* JitBaseBlockCache::Dispatch()
   return block->normalEntry;
 }
 
-void JitBaseBlockCache::InvalidateICache(u32 address, u32 length, bool forced)
+void JitBaseBlockCache::InvalidateICacheVerify(u32 address)
 {
   auto translated = PowerPC::JitCache_TranslateAddress(address);
   if (!translated.valid)
     return;
+  u32 pAddr = translated.address;
+
+  // Optimize the common case of length == 32 which is used by Interpreter::dcb*
+  bool destroy_block = true;
+  if (true)
+  {
+    if (!valid_block.Test(pAddr / 32))
+      destroy_block = false;
+    else
+      valid_block.Clear(pAddr / 32);
+  }
+
+  if (destroy_block)
+  {
+    ERROR_LOG_FMT(DYNA_REC,
+                  "Inconsistency! JIT assumes no invalidate needed, but it is in fact needed. "
+                  "Address 0x{:016x}, physical 0x{:016x}",
+                  address, pAddr);
+  }
+  else
+  {
+    //ERROR_LOG_FMT(DYNA_REC, "JIT-invoked skip invalidation at 0x{:016x}, physical 0x{:016x}",
+    //              address, pAddr);
+  }
+}
+
+void JitBaseBlockCache::InvalidateICache(u32 address, u32 length, bool forced)
+{
+  auto translated = PowerPC::JitCache_TranslateAddress(address);
+  if (!translated.valid)
+  {
+    ERROR_LOG_FMT(DYNA_REC, "Tried invalidating invalid address 0x{:016x}.", address);
+    return;
+  }
   u32 pAddr = translated.address;
 
   // Optimize the common case of length == 32 which is used by Interpreter::dcb*
@@ -202,6 +236,8 @@ void JitBaseBlockCache::InvalidateICache(u32 address, u32 length, bool forced)
 
   if (destroy_block)
   {
+    ERROR_LOG_FMT(DYNA_REC, "Invalidating block at 0x{:016x}, physical 0x{:016x}", address, pAddr);
+
     // destroy JIT blocks
     ErasePhysicalRange(pAddr, length);
 
@@ -217,6 +253,10 @@ void JitBaseBlockCache::InvalidateICache(u32 address, u32 length, bool forced)
         m_jit.js.pairedQuantizeAddresses.erase(i);
       }
     }
+  }
+  else
+  {
+    //ERROR_LOG_FMT(DYNA_REC, "Skip invalidation at 0x{:016x}, physical 0x{:016x}", address, pAddr);
   }
 }
 

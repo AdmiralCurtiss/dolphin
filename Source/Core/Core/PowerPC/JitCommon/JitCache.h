@@ -161,6 +161,7 @@ public:
   const u8* Dispatch();
 
   void InvalidateICache(u32 address, u32 length, bool forced);
+  void InvalidateICacheVerify(u32 address);
   void ErasePhysicalRange(u32 address, u32 length);
 
   u32* GetBlockBitSet() const;
