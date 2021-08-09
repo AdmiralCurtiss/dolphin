@@ -131,7 +131,10 @@ const BlobReader& VolumeGC::GetBlobReader() const
 
 Platform VolumeGC::GetVolumeType() const
 {
-  return Platform::GameCubeDisc;
+  if (IsTriforceGame())
+    return Platform::Triforce;
+  else
+    return Platform::GameCubeDisc;
 }
 
 bool VolumeGC::IsDatelDisc() const
