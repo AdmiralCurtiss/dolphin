@@ -717,6 +717,7 @@ void SConfig::LoadDefaults()
   SelectedLanguage = 0;
   bOverrideRegionSettings = false;
   bWii = false;
+  bTri = false;
 
   bLoopFifoReplay = true;
 
@@ -802,6 +803,7 @@ struct SetGameMetadata
   {
     *region = disc.volume->GetRegion();
     config->bWii = disc.volume->GetVolumeType() == DiscIO::Platform::WiiDisc;
+    config->bTri = disc.volume->GetVolumeType() == DiscIO::Platform::Triforce;
     config->m_disc_booted_from_game_list = true;
     config->SetRunningGameMetadata(*disc.volume, disc.volume->GetGamePartition());
     return true;

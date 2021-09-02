@@ -128,6 +128,7 @@ struct SConfig
   bool bOverrideRegionSettings = false;
 
   bool bWii = false;
+  bool bTri = false;
   bool m_is_mios = false;
 
   // Interface settings
