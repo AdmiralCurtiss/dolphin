@@ -93,14 +93,14 @@ static std::unique_ptr<VolumeDisc> CreateDisc(std::unique_ptr<BlobReader>& reade
 
   if (reader->ReadSwapped<u32>(0x1C) == GAMECUBE_DISC_MAGIC)
   {
-    auto volume = std::make_unique<VolumeGC>(std::move(reader));
-    if (volume->IsTriforceGame())
-      return std::make_unique<VolumeTri>(std::move(volume->GetBlobReaderPtr()));
+    auto volume = std::make_unique<VolumeTri>(std::move(reader));
+    if (!volume->IsTriforceGame())
+      return std::make_unique<VolumeGC>(std::move(volume->GetBlobReaderPtr()));
     else
       return volume;
   }
 
-    // No known magic words found
+  // No known magic words found
   return nullptr;
 }
 

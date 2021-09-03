@@ -18,7 +18,7 @@ public:
   void DoState(PointerWrap& p) override;
 
 private:
-  enum
+  enum class Command
   {
     init = 0x00
   };
@@ -27,6 +27,6 @@ private:
   u32 m_position = 0;
   u32 m_command = 0;
 
-  void TransferByte(u8& _uByte) override;
+  void TransferByte(u8& byte) override;
 };
 }  // namespace ExpansionInterface

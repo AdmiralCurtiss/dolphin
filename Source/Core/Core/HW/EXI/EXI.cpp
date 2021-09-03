@@ -65,12 +65,8 @@ void AddMemoryCards(int i)
 
 void AddSP1Device()
 {
-  TEXIDevices sp1_device;
-  if (SConfig::GetInstance().bTri)
-  {
-    sp1_device = EXIDEVICE_BASEBOARD;
-  }
-  else
+  TEXIDevices sp1_device = EXIDEVICE_BASEBOARD;
+  if (!SConfig::GetInstance().bTri)
   {
     sp1_device = SConfig::GetInstance().m_EXIDevice[2];
   }

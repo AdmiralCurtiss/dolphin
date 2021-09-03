@@ -162,11 +162,10 @@ bool CBoot::RunApploader(bool is_wii, const DiscIO::VolumeDisc& volume)
 
   // return
   PC = PowerPC::ppcState.gpr[3];
-
+  // Blank out session key (https://debugmo.de/2008/05/part-2-dumping-the-media-board/)
   if (volume.GetVolumeType() == DiscIO::Platform::Triforce)
   {
-    char* ptr = (char*)(Memory::GetPointer(0));
-    memset(ptr, 0, 12);
+    Memory::Memset(0, 0, 12);
   }
 
   return true;

@@ -815,14 +815,15 @@ void ExecuteCommand(ReplyType reply_type)
   DIInterruptType interrupt_type = DIInterruptType::TCINT;
   bool command_handled_by_thread = false;
 
-  // DVDLowRequestError needs access to the error code set by the previous command
-  if (static_cast<DICommand>(s_DICMDBUF[0] >> 24) != DICommand::RequestError)
-    SetDriveError(DriveError::None);
-
+  // Swap's endian of Triforce DI commands, and zeroes out random bytes to prevent unknown read subcommand errors
   if (DVDThread::GetDiscType() == DiscIO::Platform::Triforce)
   {
     s_DICMDBUF[0] <<= 24;
   }
+
+  // DVDLowRequestError needs access to the error code set by the previous command
+  if (static_cast<DICommand>(s_DICMDBUF[0] >> 24) != DICommand::RequestError)
+    SetDriveError(DriveError::None);
 
   switch (static_cast<DICommand>(s_DICMDBUF[0] >> 24))
   {
@@ -869,21 +870,21 @@ void ExecuteCommand(ReplyType reply_type)
         SetDriveState(DriveState::Ready);
       if (DVDThread::GetDiscType() == DiscIO::Platform::Triforce)
       {
-        if (dvd_offset & 0x80000000)
+        if ((dvd_offset & 0x80000000) != 0)
         {
           switch (dvd_offset)
           {
           // Media board status (1)
           case 0x80000000:
-            memset(Memory::GetPointer(s_DIMAR), 0, s_DICMDBUF[2]);
+            Memory::Memset(s_DIMAR, 0, s_DICMDBUF[2]);
             break;
           // Media board status (2)
           case 0x80000020:
-            memset(Memory::GetPointer(s_DIMAR), 0, s_DICMDBUF[2]);
+            Memory::Memset(s_DIMAR, 0, s_DICMDBUF[2]);
             break;
           // Media board status (3)
           case 0x80000040:
-            memset(Memory::GetPointer(s_DIMAR), 0xFFFFFFFF, s_DICMDBUF[2]);
+            Memory::Memset(s_DIMAR, 0xFF, s_DICMDBUF[2]);
             // DIMM size
             Memory::Write_U32(0x20, s_DIMAR);
             // GCAM signature
@@ -891,11 +892,11 @@ void ExecuteCommand(ReplyType reply_type)
             break;
           // Firmware status (1)
           case 0x80000120:
-            memset(Memory::GetPointer(s_DIMAR), 0x01010101, s_DICMDBUF[2]);
+            Memory::Memset(s_DIMAR, 0x01, s_DICMDBUF[2]);
             break;
           // Firmware status (2)
           case 0x80000140:
-            memset(Memory::GetPointer(s_DIMAR), 0x01010101, s_DICMDBUF[2]);
+            Memory::Memset(s_DIMAR, 0x01, s_DICMDBUF[2]);
             break;
           default:
             PanicAlertFmtT("Unknown Media Board Read");

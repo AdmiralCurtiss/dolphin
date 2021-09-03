@@ -10,9 +10,7 @@
 
 namespace ExpansionInterface
 {
-CEXIBaseboard::CEXIBaseboard()
-{
-}
+CEXIBaseboard::CEXIBaseboard() = default;
 
 void CEXIBaseboard::SetCS(int cs)
 {
@@ -33,16 +31,16 @@ void CEXIBaseboard::TransferByte(u8& byte)
   }
   else
   {
-    switch (m_command)
+    switch (static_cast<Command>(m_command))
     {
-    case init:
+    case Command::init:
     {
-      constexpr std::array<u8, 4> ID = {0x06, 0x04, 0x10, 0x00};
+      static constexpr std::array<u8, 4> ID = {0x06, 0x04, 0x10, 0x00};
       byte = ID[(m_position - 2) & 3];
       break;
     }
     default:
-      ERROR_LOG_FMT(EXPANSIONINTERFACE, "EXI BASEBOARD: Unhandled command {:#x}", m_command);
+      ERROR_LOG_FMT(EXPANSIONINTERFACE, "EXI BASEBOARD: Unhandled command {:#x} {:#x}", m_command, m_position);
     }
   }
   m_position++;

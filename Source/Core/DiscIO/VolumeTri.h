@@ -1,4 +1,4 @@
-// Copyright 2008 Dolphin Emulator Project
+// Copyright 2021 Dolphin Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #pragma once
@@ -25,11 +25,11 @@ enum class Language;
 enum class Region;
 enum class Platform;
 
-class VolumeTri : public VolumeDisc
+class VolumeTri final : public VolumeDisc
 {
 public:
-  VolumeTri(std::unique_ptr<BlobReader> reader);
-  ~VolumeTri();
+  explicit VolumeTri(std::unique_ptr<BlobReader> reader);
+  ~VolumeTri() override;
   bool Read(u64 offset, u64 length, u8* buffer,
             const Partition& partition = PARTITION_NONE) const override;
   const FileSystem* GetFileSystem(const Partition& partition = PARTITION_NONE) const override;
@@ -42,6 +42,7 @@ public:
   std::vector<u32> GetBanner(u32* width, u32* height) const override;
 
   Platform GetVolumeType() const override;
+  bool IsTriforceGame() const;
   bool IsDatelDisc() const override;
   Region GetRegion() const override;
   BlobType GetBlobType() const override;
@@ -49,12 +50,13 @@ public:
   bool IsSizeAccurate() const override;
   u64 GetRawSize() const override;
   const BlobReader& GetBlobReader() const override;
+  std::unique_ptr<BlobReader>& GetBlobReaderPtr();
 
   std::array<u8, 20> GetSyncHash() const override;
 
 private:
-  static const u32 GC_BANNER_WIDTH = 96;
-  static const u32 GC_BANNER_HEIGHT = 32;
+  static constexpr u32 GC_BANNER_WIDTH = 96;
+  static constexpr u32 GC_BANNER_HEIGHT = 32;
 
   struct GCBannerInformation
   {
@@ -76,6 +78,11 @@ private:
                                                     // (only one for BNR1 type)
   };
 
+  struct BootID
+  {
+    u32 id;  // BTID
+  };
+
   struct ConvertedGCBanner
   {
     ConvertedGCBanner();
@@ -95,8 +102,8 @@ private:
   ConvertedGCBanner LoadBannerFile() const;
   ConvertedGCBanner ExtractBannerInformation(const GCBanner& banner_file, bool is_bnr1) const;
 
-  static const size_t BNR1_SIZE = sizeof(GCBanner) - sizeof(GCBannerInformation) * 5;
-  static const size_t BNR2_SIZE = sizeof(GCBanner);
+  static constexpr size_t BNR1_SIZE = sizeof(GCBanner) - sizeof(GCBannerInformation) * 5;
+  static constexpr size_t BNR2_SIZE = sizeof(GCBanner);
 
   Common::Lazy<ConvertedGCBanner> m_converted_banner;
 

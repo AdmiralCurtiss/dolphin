@@ -27,11 +27,10 @@
 #include "DiscIO/FileSystemGCWii.h"
 #include "DiscIO/Filesystem.h"
 #include "DiscIO/Volume.h"
-#include "DiscIO/VolumeTri.h"
 
 namespace DiscIO
 {
-  VolumeGC::VolumeGC(std::unique_ptr<BlobReader> reader) : m_reader(std::move(reader))
+VolumeGC::VolumeGC(std::unique_ptr<BlobReader> reader) : m_reader(std::move(reader))
 {
   ASSERT(m_reader);
 
@@ -46,7 +45,6 @@ namespace DiscIO
 VolumeGC::~VolumeGC()
 {
 }
-
 
 bool VolumeGC::Read(u64 offset, u64 length, u8* buffer, const Partition& partition) const
 {
@@ -131,23 +129,9 @@ const BlobReader& VolumeGC::GetBlobReader() const
   return *m_reader;
 }
 
-std::unique_ptr<BlobReader>& VolumeGC::GetBlobReaderPtr()
-{
-  return m_reader;
-}
-
 Platform VolumeGC::GetVolumeType() const
 {
   return Platform::GameCubeDisc;
-}
-
-bool VolumeGC::IsTriforceGame() const
-{
-  constexpr u32 BTID_MAGIC = 0x44495442;
-  BootID triforce_header;
-  ReadFile(*this, PARTITION_NONE, "boot.id", reinterpret_cast<u8*>(&triforce_header),
-           sizeof(BootID));
-  return triforce_header.id == BTID_MAGIC;
 }
 
 bool VolumeGC::IsDatelDisc() const

@@ -1,4 +1,4 @@
-// Copyright 2008 Dolphin Emulator Project
+// Copyright 2021 Dolphin Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include "DiscIO/VolumeTri.h"
@@ -42,9 +42,7 @@ VolumeTri::VolumeTri(std::unique_ptr<BlobReader> reader) : m_reader(std::move(re
   m_converted_banner = [this] { return LoadBannerFile(); };
 }
 
-VolumeTri::~VolumeTri()
-{
-}
+VolumeTri::~VolumeTri() = default;
 
 bool VolumeTri::Read(u64 offset, u64 length, u8* buffer, const Partition& partition) const
 {
@@ -127,9 +125,29 @@ const BlobReader& VolumeTri::GetBlobReader() const
   return *m_reader;
 }
 
+std::unique_ptr<BlobReader>& VolumeTri::GetBlobReaderPtr()
+{
+  return m_reader;
+}
+
 Platform VolumeTri::GetVolumeType() const
 {
   return Platform::Triforce;
+}
+
+bool VolumeTri::IsTriforceGame() const
+{
+  constexpr u32 BTID_MAGIC = 0x44495442;
+  BootID triforce_header;
+  const u64 file_size = ReadFile(*this, PARTITION_NONE, "boot.id",
+                                 reinterpret_cast<u8*>(&triforce_header), sizeof(BootID));
+  if (file_size < 4)
+  {
+    WARN_LOG_FMT(DISCIO, "Could not read boot.id.");
+    return {};  // Return early so that we don't access the uninitialized triforce_header.id
+  }
+
+  return triforce_header.id == BTID_MAGIC;
 }
 
 bool VolumeTri::IsDatelDisc() const
