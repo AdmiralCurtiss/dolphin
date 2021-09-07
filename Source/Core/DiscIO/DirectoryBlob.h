@@ -109,15 +109,16 @@ public:
   void SetKey(std::array<u8, VolumeWii::AES_KEY_SIZE> key) { m_key = key; }
 
 private:
-  void SetDiscHeaderAndDiscType(std::optional<bool> is_wii);
-  void SetBI2();
+  void SetDiscHeaderFromFile(const std::string& boot_bin_path);
+  void SetDiscType(std::optional<bool> is_wii);
+  void SetBI2FromFile(const std::string& bi2_path);
 
   // Returns DOL address
-  u64 SetApploader();
+  u64 SetApploaderFromFile(const std::string& path);
   // Returns FST address
-  u64 SetDOL(u64 dol_address);
+  u64 SetDOLFromFile(const std::string& path, u64 dol_address);
 
-  void BuildFST(u64 fst_address);
+  void BuildFSTFromFolder(const std::string& fst_root_path, u64 fst_address);
 
   // FST creation
   void WriteEntryData(u32* entry_offset, u8 type, u32 name_offset, u64 data_offset, u64 length,

@@ -632,23 +632,28 @@ DirectoryBlobPartition::DirectoryBlobPartition(const std::string& root_directory
                                                std::optional<bool> is_wii)
     : m_root_directory(root_directory)
 {
-  SetDiscHeaderAndDiscType(is_wii);
-  SetBI2();
-  BuildFST(SetDOL(SetApploader()));
+  SetDiscHeaderFromFile(m_root_directory + "sys/boot.bin");
+  SetDiscType(is_wii);
+  SetBI2FromFile(m_root_directory + "sys/bi2.bin");
+  u64 dol_address = SetApploaderFromFile(m_root_directory + "sys/apploader.img");
+  u64 fst_address = SetDOLFromFile(m_root_directory + "sys/main.dol", dol_address);
+  BuildFSTFromFolder(m_root_directory + "files/", fst_address);
 }
 
-void DirectoryBlobPartition::SetDiscHeaderAndDiscType(std::optional<bool> is_wii)
+void DirectoryBlobPartition::SetDiscHeaderFromFile(const std::string& boot_bin_path)
 {
   constexpr u64 DISCHEADER_ADDRESS = 0;
   constexpr u64 DISCHEADER_SIZE = 0x440;
 
   m_disc_header.resize(DISCHEADER_SIZE);
-  const std::string boot_bin_path = m_root_directory + "sys/boot.bin";
   if (ReadFileToVector(boot_bin_path, &m_disc_header) < 0x20)
     ERROR_LOG_FMT(DISCIO, "{} doesn't exist or is too small", boot_bin_path);
 
   m_contents.Add(DISCHEADER_ADDRESS, m_disc_header);
+}
 
+void DirectoryBlobPartition::SetDiscType(std::optional<bool> is_wii)
+{
   if (is_wii.has_value())
   {
     m_is_wii = *is_wii;
@@ -658,13 +663,16 @@ void DirectoryBlobPartition::SetDiscHeaderAndDiscType(std::optional<bool> is_wii
     m_is_wii = Common::swap32(&m_disc_header[0x18]) == WII_DISC_MAGIC;
     const bool is_gc = Common::swap32(&m_disc_header[0x1c]) == GAMECUBE_DISC_MAGIC;
     if (m_is_wii == is_gc)
-      ERROR_LOG_FMT(DISCIO, "Couldn't detect disc type based on {}", boot_bin_path);
+    {
+      ERROR_LOG_FMT(DISCIO, "Couldn't detect disc type based on disc header; assuming {}",
+                    m_is_wii ? "Wii" : "GameCube");
+    }
   }
 
   m_address_shift = m_is_wii ? 2 : 0;
 }
 
-void DirectoryBlobPartition::SetBI2()
+void DirectoryBlobPartition::SetBI2FromFile(const std::string& bi2_path)
 {
   constexpr u64 BI2_ADDRESS = 0x440;
   constexpr u64 BI2_SIZE = 0x2000;
@@ -673,7 +681,6 @@ void DirectoryBlobPartition::SetBI2()
   if (!m_is_wii)
     Write32(INVALID_REGION, 0x18, &m_bi2);
 
-  const std::string bi2_path = m_root_directory + "sys/bi2.bin";
   const size_t bytes_read = ReadFileToVector(bi2_path, &m_bi2);
   if (!m_is_wii && bytes_read < 0x1C)
     ERROR_LOG_FMT(DISCIO, "Couldn't read region from {}", bi2_path);
@@ -681,11 +688,10 @@ void DirectoryBlobPartition::SetBI2()
   m_contents.Add(BI2_ADDRESS, m_bi2);
 }
 
-u64 DirectoryBlobPartition::SetApploader()
+u64 DirectoryBlobPartition::SetApploaderFromFile(const std::string& path)
 {
   bool success = false;
 
-  const std::string path = m_root_directory + "sys/apploader.img";
   File::IOFile file(path, "rb");
   m_apploader.resize(file.GetSize());
   if (m_apploader.size() < 0x20 || !file.ReadBytes(m_apploader.data(), m_apploader.size()))
@@ -717,9 +723,9 @@ u64 DirectoryBlobPartition::SetApploader()
   return Common::AlignUp(APPLOADER_ADDRESS + m_apploader.size() + 0x20, 0x20ull);
 }
 
-u64 DirectoryBlobPartition::SetDOL(u64 dol_address)
+u64 DirectoryBlobPartition::SetDOLFromFile(const std::string& path, u64 dol_address)
 {
-  const u64 dol_size = m_contents.CheckSizeAndAdd(dol_address, m_root_directory + "sys/main.dol");
+  const u64 dol_size = m_contents.CheckSizeAndAdd(dol_address, path);
 
   Write32(static_cast<u32>(dol_address >> m_address_shift), 0x0420, &m_disc_header);
 
@@ -727,11 +733,11 @@ u64 DirectoryBlobPartition::SetDOL(u64 dol_address)
   return Common::AlignUp(dol_address + dol_size + 0x20, 0x20ull);
 }
 
-void DirectoryBlobPartition::BuildFST(u64 fst_address)
+void DirectoryBlobPartition::BuildFSTFromFolder(const std::string& fst_root_path, u64 fst_address)
 {
   m_fst_data.clear();
 
-  File::FSTEntry rootEntry = File::ScanDirectoryTree(m_root_directory + "files/", true);
+  File::FSTEntry rootEntry = File::ScanDirectoryTree(fst_root_path, true);
 
   ConvertUTF8NamesToSHIFTJIS(&rootEntry);
 
