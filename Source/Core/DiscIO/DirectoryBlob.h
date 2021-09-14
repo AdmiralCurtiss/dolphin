@@ -33,18 +33,23 @@ class DirectoryBlobReader;
 // Returns true if the path is inside a DirectoryBlob and doesn't represent the DirectoryBlob itself
 bool ShouldHideFromGameList(const std::string& volume_path);
 
+using ContentSource =
+    std::variant<std::string,          // File
+                 const u8*,            // Memory
+                 DirectoryBlobReader*  // Partition (which one it is is determined by m_offset)
+                 >;
+
+struct FSTBuilderNode
+{
+  std::string m_filename;
+  u64 m_size;
+  std::variant<ContentSource, std::vector<FSTBuilderNode>> m_content;
+};
+
 class DiscContent
 {
 public:
-  using ContentSource =
-      std::variant<std::string,          // File
-                   const u8*,            // Memory
-                   DirectoryBlobReader*  // Partition (which one it is is determined by m_offset)
-                   >;
-
-  DiscContent(u64 offset, u64 size, const std::string& path);
-  DiscContent(u64 offset, u64 size, const u8* data);
-  DiscContent(u64 offset, u64 size, DirectoryBlobReader* blob);
+  DiscContent(u64 offset, u64 size, ContentSource source);
 
   // Provided because it's convenient when searching for DiscContent in an std::set
   explicit DiscContent(u64 offset);
@@ -71,13 +76,11 @@ class DiscContentContainer
 {
 public:
   template <typename T>
-  void Add(u64 offset, const std::vector<T>& vector)
+  void AddReference(u64 offset, const std::vector<T>& vector)
   {
     return Add(offset, vector.size() * sizeof(T), reinterpret_cast<const u8*>(vector.data()));
   }
-  void Add(u64 offset, u64 size, const std::string& path);
-  void Add(u64 offset, u64 size, const u8* data);
-  void Add(u64 offset, u64 size, DirectoryBlobReader* blob);
+  void Add(u64 offset, u64 size, ContentSource source);
   u64 CheckSizeAndAdd(u64 offset, const std::string& path);
   u64 CheckSizeAndAdd(u64 offset, u64 max_size, const std::string& path);
 
@@ -120,12 +123,16 @@ private:
 
   void BuildFSTFromFolder(const std::string& fst_root_path, u64 fst_address);
 
+  // content data is move'd from root_nodes
+  void BuildFST(std::vector<FSTBuilderNode>* root_nodes, u64 fst_address);
+
   // FST creation
   void WriteEntryData(u32* entry_offset, u8 type, u32 name_offset, u64 data_offset, u64 length,
                       u32 address_shift);
   void WriteEntryName(u32* name_offset, const std::string& name, u64 name_table_offset);
-  void WriteDirectory(const File::FSTEntry& parent_entry, u32* fst_offset, u32* name_offset,
-                      u64* data_offset, u32 parent_entry_index, u64 name_table_offset);
+  void WriteDirectory(std::vector<FSTBuilderNode>* parent_entries, u32* fst_offset,
+                      u32* name_offset, u64* data_offset, u32 parent_entry_index,
+                      u64 name_table_offset);
 
   DiscContentContainer m_contents;
   std::vector<u8> m_disc_header;
