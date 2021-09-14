@@ -16,6 +16,7 @@
 #include "Common/CommonTypes.h"
 #include "Common/FileUtil.h"
 #include "DiscIO/Blob.h"
+#include "DiscIO/Volume.h"
 #include "DiscIO/WiiEncryptionCache.h"
 
 namespace File
@@ -29,6 +30,7 @@ namespace DiscIO
 enum class PartitionType : u32;
 
 class DirectoryBlobReader;
+class VolumeDisc;
 
 // Returns true if the path is inside a DirectoryBlob and doesn't represent the DirectoryBlob itself
 bool ShouldHideFromGameList(const std::string& volume_path);
@@ -108,6 +110,8 @@ class DirectoryBlobPartition
 public:
   DirectoryBlobPartition() = default;
   DirectoryBlobPartition(const std::string& root_directory, std::optional<bool> is_wii);
+  DirectoryBlobPartition(DiscIO::VolumeDisc* volume, const DiscIO::Partition& partition,
+                         std::optional<bool> is_wii);
 
   // We do not allow copying, because it might mess up the pointers inside DiscContents
   DirectoryBlobPartition(const DirectoryBlobPartition&) = delete;
@@ -120,6 +124,10 @@ public:
   const std::string& GetRootDirectory() const { return m_root_directory; }
   const std::vector<u8>& GetHeader() const { return m_disc_header; }
   const DiscContentContainer& GetContents() const { return m_contents; }
+  const std::optional<DiscIO::Partition>& GetWrappedPartition() const
+  {
+    return m_wrapped_partition;
+  }
 
   const std::array<u8, VolumeWii::AES_KEY_SIZE>& GetKey() const { return m_key; }
   void SetKey(std::array<u8, VolumeWii::AES_KEY_SIZE> key) { m_key = key; }
@@ -156,6 +164,7 @@ private:
   std::vector<u8> m_bi2;
   std::vector<u8> m_apploader;
   std::vector<u8> m_fst_data;
+  std::vector<std::vector<u8>> m_extra_data;
 
   std::array<u8, VolumeWii::AES_KEY_SIZE> m_key;
 
@@ -165,6 +174,8 @@ private:
   u32 m_address_shift = 0;
 
   u64 m_data_size;
+
+  std::optional<DiscIO::Partition> m_wrapped_partition = std::nullopt;
 };
 
 class DirectoryBlobReader : public BlobReader
@@ -173,6 +184,7 @@ class DirectoryBlobReader : public BlobReader
 
 public:
   static std::unique_ptr<DirectoryBlobReader> Create(const std::string& dol_path);
+  static std::unique_ptr<DirectoryBlobReader> Create(std::unique_ptr<DiscIO::VolumeDisc> volume);
 
   // We do not allow copying, because it might mess up the pointers inside DiscContents
   DirectoryBlobReader(const DirectoryBlobReader&) = delete;
@@ -208,6 +220,7 @@ private:
 
   explicit DirectoryBlobReader(const std::string& game_partition_root,
                                const std::string& true_root);
+  explicit DirectoryBlobReader(std::unique_ptr<DiscIO::VolumeDisc> volume);
 
   const DirectoryBlobPartition* GetPartition(u64 offset, u64 size, u64 partition_data_offset) const;
 
@@ -237,9 +250,11 @@ private:
   std::vector<u8> m_disc_header_nonpartition;
   std::vector<u8> m_partition_table;
   std::vector<u8> m_wii_region_data;
-  std::vector<std::vector<u8>> m_partition_headers;
+  std::vector<std::vector<u8>> m_extra_data;
 
   u64 m_data_size;
+
+  std::unique_ptr<DiscIO::VolumeDisc> m_wrapped_volume;
 };
 
 }  // namespace DiscIO

@@ -335,6 +335,15 @@ std::unique_ptr<DirectoryBlobReader> DirectoryBlobReader::Create(const std::stri
   return std::unique_ptr<DirectoryBlobReader>(new DirectoryBlobReader(partition_root, true_root));
 }
 
+std::unique_ptr<DirectoryBlobReader>
+DirectoryBlobReader::Create(std::unique_ptr<DiscIO::VolumeDisc> volume)
+{
+  if (!volume)
+    return nullptr;
+
+  return std::unique_ptr<DirectoryBlobReader>(new DirectoryBlobReader(std::move(volume)));
+}
+
 DirectoryBlobReader::DirectoryBlobReader(const std::string& game_partition_root,
                                          const std::string& true_root)
     : m_encryption_cache(this)
@@ -372,6 +381,57 @@ DirectoryBlobReader::DirectoryBlobReader(const std::string& game_partition_root,
                                     *type);
           }
         }
+      }
+    }
+
+    SetPartitions(std::move(partitions));
+  }
+}
+
+DirectoryBlobReader::DirectoryBlobReader(std::unique_ptr<DiscIO::VolumeDisc> volume)
+    : m_encryption_cache(this), m_wrapped_volume(std::move(volume))
+{
+  DirectoryBlobPartition game_partition(m_wrapped_volume.get(),
+                                        m_wrapped_volume->GetGamePartition(), std::nullopt);
+  m_is_wii = game_partition.IsWii();
+
+  if (!m_is_wii)
+  {
+    m_gamecube_pseudopartition = std::move(game_partition);
+    m_data_size = m_gamecube_pseudopartition.GetDataSize();
+    m_encrypted = false;
+  }
+  else
+  {
+    std::vector<u8> header_bin(NONPARTITION_DISCHEADER_SIZE);
+    if (!m_wrapped_volume->Read(NONPARTITION_DISCHEADER_ADDRESS, NONPARTITION_DISCHEADER_SIZE,
+                                header_bin.data(), PARTITION_NONE))
+    {
+      header_bin.clear();
+    }
+    SetNonpartitionDiscHeader(game_partition.GetHeader(), header_bin);
+
+    std::vector<u8> wii_region_data(WII_REGION_DATA_SIZE);
+    if (!m_wrapped_volume->Read(WII_REGION_DATA_ADDRESS, WII_REGION_DATA_SIZE,
+                                wii_region_data.data(), PARTITION_NONE))
+    {
+      wii_region_data.clear();
+    }
+    SetWiiRegionData(wii_region_data, "region");
+
+    std::vector<PartitionWithType> partitions;
+    partitions.emplace_back(std::move(game_partition), PartitionType::Game);
+
+    for (Partition partition : m_wrapped_volume->GetPartitions())
+    {
+      if (partition == m_wrapped_volume->GetGamePartition())
+        continue;
+
+      auto type = m_wrapped_volume->GetPartitionType(partition);
+      if (type)
+      {
+        partitions.emplace_back(DirectoryBlobPartition(m_wrapped_volume.get(), partition, m_is_wii),
+                                static_cast<PartitionType>(*type));
       }
     }
 
@@ -586,26 +646,86 @@ void DirectoryBlobReader::SetPartitionHeader(DirectoryBlobPartition* partition,
   constexpr u32 H3_OFFSET = 0x4000;
   constexpr u32 H3_SIZE = 0x18000;
 
+  const std::optional<DiscIO::Partition>& wrapped_partition = partition->GetWrappedPartition();
   const std::string& partition_root = partition->GetRootDirectory();
 
-  const u64 ticket_size = m_nonpartition_contents.CheckSizeAndAdd(
-      partition_address + TICKET_OFFSET, TICKET_SIZE, partition_root + "ticket.bin");
+  u64 ticket_size;
+  if (wrapped_partition)
+  {
+    const auto& ticket = m_wrapped_volume->GetTicket(*wrapped_partition).GetBytes();
+    auto& new_ticket = m_extra_data.emplace_back(ticket);
+    if (new_ticket.size() > TICKET_SIZE)
+      new_ticket.resize(TICKET_SIZE);
+    ticket_size = new_ticket.size();
+    m_nonpartition_contents.AddReference(partition_address + TICKET_OFFSET, new_ticket);
+  }
+  else
+  {
+    ticket_size = m_nonpartition_contents.CheckSizeAndAdd(
+        partition_address + TICKET_OFFSET, TICKET_SIZE, partition_root + "ticket.bin");
+  }
 
-  const u64 tmd_size = m_nonpartition_contents.CheckSizeAndAdd(
-      partition_address + TMD_OFFSET, IOS::ES::MAX_TMD_SIZE, partition_root + "tmd.bin");
+  u64 tmd_size;
+  if (wrapped_partition)
+  {
+    const auto& tmd = m_wrapped_volume->GetTMD(*wrapped_partition).GetBytes();
+    auto& new_tmd = m_extra_data.emplace_back(tmd);
+    if (new_tmd.size() > IOS::ES::MAX_TMD_SIZE)
+      new_tmd.resize(IOS::ES::MAX_TMD_SIZE);
+    tmd_size = new_tmd.size();
+    m_nonpartition_contents.AddReference(partition_address + TMD_OFFSET, new_tmd);
+  }
+  else
+  {
+    tmd_size = m_nonpartition_contents.CheckSizeAndAdd(
+        partition_address + TMD_OFFSET, IOS::ES::MAX_TMD_SIZE, partition_root + "tmd.bin");
+  }
 
   const u64 cert_offset = Common::AlignUp(TMD_OFFSET + tmd_size, 0x20ull);
   const u64 max_cert_size = H3_OFFSET - cert_offset;
-  const u64 cert_size = m_nonpartition_contents.CheckSizeAndAdd(
-      partition_address + cert_offset, max_cert_size, partition_root + "cert.bin");
 
-  m_nonpartition_contents.CheckSizeAndAdd(partition_address + H3_OFFSET, H3_SIZE,
-                                          partition_root + "h3.bin");
+  u64 cert_size;
+  if (wrapped_partition)
+  {
+    const auto& cert = m_wrapped_volume->GetCertificateChain(*wrapped_partition);
+    auto& new_cert = m_extra_data.emplace_back(cert);
+    if (new_cert.size() > max_cert_size)
+      new_cert.resize(max_cert_size);
+    cert_size = new_cert.size();
+    m_nonpartition_contents.AddReference(partition_address + cert_offset, new_cert);
+  }
+  else
+  {
+    cert_size = m_nonpartition_contents.CheckSizeAndAdd(partition_address + cert_offset,
+                                                        max_cert_size, partition_root + "cert.bin");
+  }
+
+  if (wrapped_partition)
+  {
+    if (m_wrapped_volume->IsEncryptedAndHashed())
+    {
+      const std::optional<u64> offset = m_wrapped_volume->ReadSwappedAndShifted(
+          wrapped_partition->offset + 0x2b4, PARTITION_NONE);
+      if (offset)
+      {
+        auto& new_h3 = m_extra_data.emplace_back(0x18000);
+        if (m_wrapped_volume->Read(wrapped_partition->offset + *offset, new_h3.size(),
+                                   new_h3.data(), PARTITION_NONE))
+        {
+          m_nonpartition_contents.AddReference(partition_address + H3_OFFSET, new_h3);
+        }
+      }
+    }
+  }
+  else
+  {
+    m_nonpartition_contents.CheckSizeAndAdd(partition_address + H3_OFFSET, H3_SIZE,
+                                            partition_root + "h3.bin");
+  }
 
   constexpr u32 PARTITION_HEADER_SIZE = 0x1c;
   const u64 data_size = Common::AlignUp(partition->GetDataSize(), 0x7c00) / 0x7c00 * 0x8000;
-  m_partition_headers.emplace_back(PARTITION_HEADER_SIZE);
-  std::vector<u8>& partition_header = m_partition_headers.back();
+  std::vector<u8>& partition_header = m_extra_data.emplace_back(PARTITION_HEADER_SIZE);
   Write32(static_cast<u32>(tmd_size), 0x0, &partition_header);
   Write32(TMD_OFFSET >> 2, 0x4, &partition_header);
   Write32(static_cast<u32>(cert_size), 0x8, &partition_header);
@@ -624,6 +744,35 @@ void DirectoryBlobReader::SetPartitionHeader(DirectoryBlobPartition* partition,
     partition->SetKey(ticket.GetTitleKey());
 }
 
+static void GenerateBuilderNodesFromFileSystem(const DiscIO::VolumeDisc& volume,
+                                               const DiscIO::Partition& partition,
+                                               std::vector<FSTBuilderNode>* nodes,
+                                               const FileInfo& parent_info,
+                                               std::vector<std::vector<u8>>* data_storage)
+{
+  for (const FileInfo& file_info : parent_info)
+  {
+    if (file_info.IsDirectory())
+    {
+      std::vector<FSTBuilderNode> child_nodes;
+      GenerateBuilderNodesFromFileSystem(volume, partition, &child_nodes, file_info, data_storage);
+      nodes->emplace_back(FSTBuilderNode{file_info.GetName(), file_info.GetTotalChildren(),
+                                         std::move(child_nodes)});
+    }
+    else
+    {
+      // TODO: Just reference the volume instead of reading all the data into memory.
+      std::vector<u8>& data = data_storage->emplace_back();
+      data.resize(file_info.GetSize());
+      volume.Read(file_info.GetOffset(), file_info.GetSize(), data.data(), partition);
+      std::vector<BuilderContentSource> source;
+      source.emplace_back(BuilderContentSource{0, file_info.GetSize(), ContentSource(data.data())});
+      nodes->emplace_back(
+          FSTBuilderNode{file_info.GetName(), file_info.GetSize(), std::move(source)});
+    }
+  }
+}
+
 DirectoryBlobPartition::DirectoryBlobPartition(const std::string& root_directory,
                                                std::optional<bool> is_wii)
     : m_root_directory(root_directory)
@@ -634,6 +783,55 @@ DirectoryBlobPartition::DirectoryBlobPartition(const std::string& root_directory
   u64 dol_address = SetApploaderFromFile(m_root_directory + "sys/apploader.img");
   u64 fst_address = SetDOLFromFile(m_root_directory + "sys/main.dol", dol_address);
   BuildFSTFromFolder(m_root_directory + "files/", fst_address);
+}
+
+DirectoryBlobPartition::DirectoryBlobPartition(DiscIO::VolumeDisc* volume,
+                                               const DiscIO::Partition& partition,
+                                               std::optional<bool> is_wii)
+    : m_wrapped_partition(partition)
+{
+  std::vector<u8> disc_header(DISC_HEADER_SIZE);
+  if (!volume->Read(DISC_HEADER_ADDRESS, DISC_HEADER_SIZE, disc_header.data(), partition))
+    disc_header.clear();
+  SetDiscHeader(disc_header);
+  SetDiscType(is_wii);
+
+  std::vector<u8> bi2(DISC_BI2_SIZE);
+  if (!volume->Read(DISC_BI2_ADDRESS, DISC_BI2_SIZE, bi2.data(), partition))
+    bi2.clear();
+  SetBI2(bi2);
+
+  std::vector<u8> apploader;
+  const auto apploader_size = GetApploaderSize(*volume, partition);
+  if (apploader_size)
+  {
+    apploader.resize(*apploader_size);
+    if (!volume->Read(DISC_APPLOADER_ADDRESS, *apploader_size, apploader.data(), partition))
+      apploader.clear();
+  }
+  const u64 new_dol_address = SetApploader(apploader, "apploader");
+
+  std::vector<u8>& dol = m_extra_data.emplace_back();
+  const auto dol_offset = GetBootDOLOffset(*volume, partition);
+  if (dol_offset)
+  {
+    const auto dol_size = GetBootDOLSize(*volume, partition, *dol_offset);
+    if (dol_size)
+    {
+      dol.resize(*dol_size);
+      if (!volume->Read(*dol_offset, *dol_size, dol.data(), partition))
+        dol.clear();
+    }
+  }
+  const u64 new_fst_address = SetDOL(dol, new_dol_address);
+
+  const FileSystem* fs = volume->GetFileSystem(partition);
+  if (!fs || !fs->IsValid())
+    return;
+
+  std::vector<FSTBuilderNode> nodes;
+  GenerateBuilderNodesFromFileSystem(*volume, partition, &nodes, fs->GetRoot(), &m_extra_data);
+  BuildFST(&nodes, new_fst_address);
 }
 
 void DirectoryBlobPartition::SetDiscHeaderFromFile(const std::string& boot_bin_path)
