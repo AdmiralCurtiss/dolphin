@@ -95,11 +95,15 @@ bool DiscContent::Read(u64* offset, u64* length, u8** buffer) const
   {
     const u64 bytes_to_read = std::min(m_size - offset_in_content, *length);
 
-    if (std::holds_alternative<std::string>(m_content_source))
+    if (std::holds_alternative<ContentFile>(m_content_source))
     {
-      File::IOFile file(std::get<std::string>(m_content_source), "rb");
-      if (!file.Seek(offset_in_content, SEEK_SET) || !file.ReadBytes(*buffer, bytes_to_read))
+      const auto& content = std::get<ContentFile>(m_content_source);
+      File::IOFile file(content.m_filename, "rb");
+      if (!file.Seek(content.m_offset + offset_in_content, SEEK_SET) ||
+          !file.ReadBytes(*buffer, bytes_to_read))
+      {
         return false;
+      }
     }
     else if (std::holds_alternative<const u8*>(m_content_source))
     {
@@ -134,14 +138,14 @@ void DiscContentContainer::Add(u64 offset, u64 size, ContentSource source)
 u64 DiscContentContainer::CheckSizeAndAdd(u64 offset, const std::string& path)
 {
   const u64 size = File::GetSize(path);
-  Add(offset, size, path);
+  Add(offset, size, ContentFile{0, path});
   return size;
 }
 
 u64 DiscContentContainer::CheckSizeAndAdd(u64 offset, u64 max_size, const std::string& path)
 {
   const u64 size = std::min(File::GetSize(path), max_size);
-  Add(offset, size, path);
+  Add(offset, size, ContentFile{0, path});
   return size;
 }
 
@@ -717,9 +721,14 @@ static std::vector<FSTBuilderNode> ConvertFSTEntriesToBuilderNodes(const File::F
   {
     std::variant<std::vector<BuilderContentSource>, std::vector<FSTBuilderNode>> content;
     if (entry.isDirectory)
+    {
       content = ConvertFSTEntriesToBuilderNodes(entry);
+    }
     else
-      content = std::vector<BuilderContentSource>{{0, entry.size, entry.physicalName}};
+    {
+      content =
+          std::vector<BuilderContentSource>{{0, entry.size, ContentFile{0, entry.physicalName}}};
+    }
 
     std::string disc_filename = UTF8ToSHIFTJIS(entry.virtualName);
 

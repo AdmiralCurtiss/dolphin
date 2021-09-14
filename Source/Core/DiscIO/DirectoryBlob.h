@@ -33,8 +33,14 @@ class DirectoryBlobReader;
 // Returns true if the path is inside a DirectoryBlob and doesn't represent the DirectoryBlob itself
 bool ShouldHideFromGameList(const std::string& volume_path);
 
+struct ContentFile
+{
+  u64 m_offset;
+  std::string m_filename;
+};
+
 using ContentSource =
-    std::variant<std::string,          // File
+    std::variant<ContentFile,          // File
                  const u8*,            // Memory
                  DirectoryBlobReader*  // Partition (which one it is is determined by m_offset)
                  >;
