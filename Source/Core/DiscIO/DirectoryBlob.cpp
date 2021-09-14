@@ -350,8 +350,8 @@ DirectoryBlobReader::DirectoryBlobReader(const std::string& game_partition_root,
   }
   else
   {
-    SetNonpartitionDiscHeader(game_partition.GetHeader(), game_partition_root);
-    SetWiiRegionData(game_partition_root);
+    SetNonpartitionDiscHeaderFromFile(game_partition.GetHeader(), game_partition_root);
+    SetWiiRegionDataFromFile(game_partition_root);
 
     std::vector<PartitionWithType> partitions;
     partitions.emplace_back(std::move(game_partition), PartitionType::Game);
@@ -448,25 +448,32 @@ u64 DirectoryBlobReader::GetDataSize() const
   return m_data_size;
 }
 
-void DirectoryBlobReader::SetNonpartitionDiscHeader(const std::vector<u8>& partition_header,
-                                                    const std::string& game_partition_root)
+void DirectoryBlobReader::SetNonpartitionDiscHeaderFromFile(const std::vector<u8>& partition_header,
+                                                            const std::string& game_partition_root)
 {
-  constexpr u64 NONPARTITION_DISCHEADER_ADDRESS = 0;
-  constexpr u64 NONPARTITION_DISCHEADER_SIZE = 0x100;
-
-  m_disc_header_nonpartition.resize(NONPARTITION_DISCHEADER_SIZE);
+  std::vector<u8> header_bin(NONPARTITION_DISCHEADER_SIZE);
   const size_t header_bin_bytes_read =
-      ReadFileToVector(game_partition_root + "disc/header.bin", &m_disc_header_nonpartition);
+      ReadFileToVector(game_partition_root + "disc/header.bin", &header_bin);
+  header_bin.resize(header_bin_bytes_read);
+  SetNonpartitionDiscHeader(partition_header, header_bin);
+}
+
+void DirectoryBlobReader::SetNonpartitionDiscHeader(const std::vector<u8>& partition_header,
+                                                    const std::vector<u8>& header_bin)
+{
+  m_disc_header_nonpartition.resize(NONPARTITION_DISCHEADER_SIZE);
+  std::memcpy(m_disc_header_nonpartition.data(), header_bin.data(),
+              std::min(header_bin.size(), NONPARTITION_DISCHEADER_SIZE));
 
   // If header.bin is missing or smaller than expected, use the content of sys/boot.bin instead
-  std::copy(partition_header.data() + header_bin_bytes_read,
+  std::copy(partition_header.data() + header_bin.size(),
             partition_header.data() + m_disc_header_nonpartition.size(),
-            m_disc_header_nonpartition.data() + header_bin_bytes_read);
+            m_disc_header_nonpartition.data() + header_bin.size());
 
   // 0x60 and 0x61 are the only differences between the partition and non-partition headers
-  if (header_bin_bytes_read < 0x60)
+  if (header_bin.size() < 0x60)
     m_disc_header_nonpartition[0x60] = 0;
-  if (header_bin_bytes_read < 0x61)
+  if (header_bin.size() < 0x61)
     m_disc_header_nonpartition[0x61] = 0;
 
   m_encrypted = std::all_of(m_disc_header_nonpartition.data() + 0x60,
@@ -475,21 +482,30 @@ void DirectoryBlobReader::SetNonpartitionDiscHeader(const std::vector<u8>& parti
   m_nonpartition_contents.AddReference(NONPARTITION_DISCHEADER_ADDRESS, m_disc_header_nonpartition);
 }
 
-void DirectoryBlobReader::SetWiiRegionData(const std::string& game_partition_root)
+void DirectoryBlobReader::SetWiiRegionDataFromFile(const std::string& game_partition_root)
+{
+  std::vector<u8> wii_region_data(WII_REGION_DATA_SIZE);
+  const std::string region_bin_path = game_partition_root + "disc/region.bin";
+  const size_t bytes_read = ReadFileToVector(region_bin_path, &wii_region_data);
+  wii_region_data.resize(bytes_read);
+  SetWiiRegionData(wii_region_data, region_bin_path);
+}
+
+void DirectoryBlobReader::SetWiiRegionData(const std::vector<u8>& wii_region_data,
+                                           const std::string& log_path)
 {
   m_wii_region_data.resize(0x10, 0x00);
-  m_wii_region_data.resize(0x20, 0x80);
+  m_wii_region_data.resize(WII_REGION_DATA_SIZE, 0x80);
   Write32(INVALID_REGION, 0, &m_wii_region_data);
 
-  const std::string region_bin_path = game_partition_root + "disc/region.bin";
-  const size_t bytes_read = ReadFileToVector(region_bin_path, &m_wii_region_data);
-  if (bytes_read < 0x4)
-    ERROR_LOG_FMT(DISCIO, "Couldn't read region from {}", region_bin_path);
-  else if (bytes_read < 0x20)
-    ERROR_LOG_FMT(DISCIO, "Couldn't read age ratings from {}", region_bin_path);
+  std::memcpy(m_wii_region_data.data(), wii_region_data.data(),
+              std::min(wii_region_data.size(), WII_REGION_DATA_SIZE));
 
-  constexpr u64 WII_REGION_DATA_ADDRESS = 0x4E000;
-  [[maybe_unused]] constexpr u64 WII_REGION_DATA_SIZE = 0x20;
+  if (wii_region_data.size() < 0x4)
+    ERROR_LOG_FMT(DISCIO, "Couldn't read region from {}", log_path);
+  else if (wii_region_data.size() < 0x20)
+    ERROR_LOG_FMT(DISCIO, "Couldn't read age ratings from {}", log_path);
+
   m_nonpartition_contents.AddReference(WII_REGION_DATA_ADDRESS, m_wii_region_data);
 }
 

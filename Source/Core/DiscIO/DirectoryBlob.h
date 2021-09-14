@@ -214,9 +214,12 @@ private:
   bool EncryptPartitionData(u64 offset, u64 size, u8* buffer, u64 partition_data_offset,
                             u64 partition_data_decrypted_size);
 
+  void SetNonpartitionDiscHeaderFromFile(const std::vector<u8>& partition_header,
+                                         const std::string& game_partition_root);
   void SetNonpartitionDiscHeader(const std::vector<u8>& partition_header,
-                                 const std::string& game_partition_root);
-  void SetWiiRegionData(const std::string& game_partition_root);
+                                 const std::vector<u8>& header_bin);
+  void SetWiiRegionDataFromFile(const std::string& game_partition_root);
+  void SetWiiRegionData(const std::vector<u8>& wii_region_data, const std::string& log_path);
   void SetPartitions(std::vector<PartitionWithType>&& partitions);
   void SetPartitionHeader(DirectoryBlobPartition* partition, u64 partition_address);
 

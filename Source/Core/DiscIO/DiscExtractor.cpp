@@ -137,7 +137,8 @@ bool ExportWiiUnencryptedHeader(const Volume& volume, const std::string& export_
   if (volume.GetVolumeType() != Platform::WiiDisc)
     return false;
 
-  return ExportData(volume, PARTITION_NONE, 0, 0x100, export_filename);
+  return ExportData(volume, PARTITION_NONE, NONPARTITION_DISCHEADER_ADDRESS,
+                    NONPARTITION_DISCHEADER_SIZE, export_filename);
 }
 
 bool ExportWiiRegionData(const Volume& volume, const std::string& export_filename)
@@ -145,7 +146,8 @@ bool ExportWiiRegionData(const Volume& volume, const std::string& export_filenam
   if (volume.GetVolumeType() != Platform::WiiDisc)
     return false;
 
-  return ExportData(volume, PARTITION_NONE, 0x4E000, 0x20, export_filename);
+  return ExportData(volume, PARTITION_NONE, WII_REGION_DATA_ADDRESS, WII_REGION_DATA_SIZE,
+                    export_filename);
 }
 
 bool ExportTicket(const Volume& volume, const Partition& partition,

@@ -35,6 +35,11 @@ constexpr u64 DISC_BI2_ADDRESS = 0x440;
 constexpr u64 DISC_BI2_SIZE = 0x2000;
 constexpr u64 DISC_APPLOADER_ADDRESS = 0x2440;
 
+constexpr u64 NONPARTITION_DISCHEADER_ADDRESS = 0;
+constexpr u64 NONPARTITION_DISCHEADER_SIZE = 0x100;
+constexpr u64 WII_REGION_DATA_ADDRESS = 0x4E000;
+constexpr u64 WII_REGION_DATA_SIZE = 0x20;
+
 std::string NameForPartitionType(u32 partition_type, bool include_prefix);
 
 std::optional<u64> GetApploaderSize(const Volume& volume, const Partition& partition);
