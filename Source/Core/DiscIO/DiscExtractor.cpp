@@ -206,7 +206,7 @@ bool ExportHeader(const Volume& volume, const Partition& partition,
   if (!IsDisc(volume.GetVolumeType()))
     return false;
 
-  return ExportData(volume, partition, 0, 0x440, export_filename);
+  return ExportData(volume, partition, DISC_HEADER_ADDRESS, DISC_HEADER_SIZE, export_filename);
 }
 
 bool ExportBI2Data(const Volume& volume, const Partition& partition,
@@ -215,7 +215,7 @@ bool ExportBI2Data(const Volume& volume, const Partition& partition,
   if (!IsDisc(volume.GetVolumeType()))
     return false;
 
-  return ExportData(volume, partition, 0x440, 0x2000, export_filename);
+  return ExportData(volume, partition, DISC_BI2_ADDRESS, DISC_BI2_SIZE, export_filename);
 }
 
 bool ExportApploader(const Volume& volume, const Partition& partition,
@@ -228,7 +228,7 @@ bool ExportApploader(const Volume& volume, const Partition& partition,
   if (!apploader_size)
     return false;
 
-  return ExportData(volume, partition, 0x2440, *apploader_size, export_filename);
+  return ExportData(volume, partition, DISC_APPLOADER_ADDRESS, *apploader_size, export_filename);
 }
 
 bool ExportDOL(const Volume& volume, const Partition& partition, const std::string& export_filename)

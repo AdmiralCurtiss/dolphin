@@ -622,14 +622,11 @@ DirectoryBlobPartition::DirectoryBlobPartition(const std::string& root_directory
 
 void DirectoryBlobPartition::SetDiscHeaderFromFile(const std::string& boot_bin_path)
 {
-  constexpr u64 DISCHEADER_ADDRESS = 0;
-  constexpr u64 DISCHEADER_SIZE = 0x440;
-
-  m_disc_header.resize(DISCHEADER_SIZE);
+  m_disc_header.resize(DISC_HEADER_SIZE);
   if (ReadFileToVector(boot_bin_path, &m_disc_header) < 0x20)
     ERROR_LOG_FMT(DISCIO, "{} doesn't exist or is too small", boot_bin_path);
 
-  m_contents.AddReference(DISCHEADER_ADDRESS, m_disc_header);
+  m_contents.AddReference(DISC_HEADER_ADDRESS, m_disc_header);
 }
 
 void DirectoryBlobPartition::SetDiscType(std::optional<bool> is_wii)
@@ -654,9 +651,7 @@ void DirectoryBlobPartition::SetDiscType(std::optional<bool> is_wii)
 
 void DirectoryBlobPartition::SetBI2FromFile(const std::string& bi2_path)
 {
-  constexpr u64 BI2_ADDRESS = 0x440;
-  constexpr u64 BI2_SIZE = 0x2000;
-  m_bi2.resize(BI2_SIZE);
+  m_bi2.resize(DISC_BI2_SIZE);
 
   if (!m_is_wii)
     Write32(INVALID_REGION, 0x18, &m_bi2);
@@ -665,7 +660,7 @@ void DirectoryBlobPartition::SetBI2FromFile(const std::string& bi2_path)
   if (!m_is_wii && bytes_read < 0x1C)
     ERROR_LOG_FMT(DISCIO, "Couldn't read region from {}", bi2_path);
 
-  m_contents.AddReference(BI2_ADDRESS, m_bi2);
+  m_contents.AddReference(DISC_BI2_ADDRESS, m_bi2);
 }
 
 u64 DirectoryBlobPartition::SetApploaderFromFile(const std::string& path)
@@ -695,12 +690,10 @@ u64 DirectoryBlobPartition::SetApploaderFromFile(const std::string& path)
     Write32(static_cast<u32>(-1), 0x10, &m_apploader);
   }
 
-  constexpr u64 APPLOADER_ADDRESS = 0x2440;
-
-  m_contents.AddReference(APPLOADER_ADDRESS, m_apploader);
+  m_contents.AddReference(DISC_APPLOADER_ADDRESS, m_apploader);
 
   // Return DOL address, 32 byte aligned (plus 32 byte padding)
-  return Common::AlignUp(APPLOADER_ADDRESS + m_apploader.size() + 0x20, 0x20ull);
+  return Common::AlignUp(DISC_APPLOADER_ADDRESS + m_apploader.size() + 0x20, 0x20ull);
 }
 
 u64 DirectoryBlobPartition::SetDOLFromFile(const std::string& path, u64 dol_address)
