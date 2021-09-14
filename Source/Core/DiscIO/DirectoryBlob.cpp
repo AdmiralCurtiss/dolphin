@@ -715,11 +715,11 @@ static std::vector<FSTBuilderNode> ConvertFSTEntriesToBuilderNodes(const File::F
   nodes.reserve(parent.children.size());
   for (const File::FSTEntry& entry : parent.children)
   {
-    std::variant<ContentSource, std::vector<FSTBuilderNode>> content;
+    std::variant<std::vector<BuilderContentSource>, std::vector<FSTBuilderNode>> content;
     if (entry.isDirectory)
       content = ConvertFSTEntriesToBuilderNodes(entry);
     else
-      content = ContentSource(entry.physicalName);
+      content = std::vector<BuilderContentSource>{{0, entry.size, entry.physicalName}};
 
     std::string disc_filename = UTF8ToSHIFTJIS(entry.virtualName);
 
@@ -849,8 +849,12 @@ void DirectoryBlobPartition::WriteDirectory(std::vector<FSTBuilderNode>* parent_
       WriteEntryName(name_offset, entry.m_filename, name_table_offset);
 
       // write entry to virtual disc
-      m_contents.Add(*data_offset, entry.m_size,
-                     std::move(std::get<ContentSource>(entry.m_content)));
+      auto& contents = std::get<std::vector<BuilderContentSource>>(entry.m_content);
+      for (BuilderContentSource& content : contents)
+      {
+        m_contents.Add(*data_offset + content.m_offset, content.m_size,
+                       std::move(content.m_source));
+      }
 
       // 32 KiB aligned - many games are fine with less alignment, but not all
       *data_offset = Common::AlignUp(*data_offset + entry.m_size, 0x8000ull);

@@ -39,11 +39,18 @@ using ContentSource =
                  DirectoryBlobReader*  // Partition (which one it is is determined by m_offset)
                  >;
 
+struct BuilderContentSource
+{
+  u64 m_offset;
+  u64 m_size;
+  ContentSource m_source;
+};
+
 struct FSTBuilderNode
 {
   std::string m_filename;
   u64 m_size;
-  std::variant<ContentSource, std::vector<FSTBuilderNode>> m_content;
+  std::variant<std::vector<BuilderContentSource>, std::vector<FSTBuilderNode>> m_content;
 };
 
 class DiscContent
