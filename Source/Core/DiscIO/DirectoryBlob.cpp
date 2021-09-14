@@ -629,6 +629,15 @@ void DirectoryBlobPartition::SetDiscHeaderFromFile(const std::string& boot_bin_p
   m_contents.AddReference(DISC_HEADER_ADDRESS, m_disc_header);
 }
 
+void DirectoryBlobPartition::SetDiscHeader(const std::vector<u8>& boot_bin)
+{
+  m_disc_header.resize(DISC_HEADER_SIZE);
+
+  std::memcpy(m_disc_header.data(), boot_bin.data(), std::min(boot_bin.size(), DISC_HEADER_SIZE));
+
+  m_contents.AddReference(DISC_HEADER_ADDRESS, m_disc_header);
+}
+
 void DirectoryBlobPartition::SetDiscType(std::optional<bool> is_wii)
 {
   if (is_wii.has_value())
@@ -663,22 +672,41 @@ void DirectoryBlobPartition::SetBI2FromFile(const std::string& bi2_path)
   m_contents.AddReference(DISC_BI2_ADDRESS, m_bi2);
 }
 
+void DirectoryBlobPartition::SetBI2(const std::vector<u8>& bi2)
+{
+  m_bi2.resize(DISC_BI2_SIZE);
+
+  if (!m_is_wii)
+    Write32(INVALID_REGION, 0x18, &m_bi2);
+
+  std::memcpy(m_bi2.data(), bi2.data(), std::min(bi2.size(), DISC_BI2_SIZE));
+
+  m_contents.AddReference(DISC_BI2_ADDRESS, m_bi2);
+}
+
 u64 DirectoryBlobPartition::SetApploaderFromFile(const std::string& path)
+{
+  File::IOFile file(path, "rb");
+  std::vector<u8> apploader(file.GetSize());
+  file.ReadBytes(apploader.data(), apploader.size());
+  return SetApploader(std::move(apploader), path);
+}
+
+u64 DirectoryBlobPartition::SetApploader(std::vector<u8> apploader, const std::string& log_path)
 {
   bool success = false;
 
-  File::IOFile file(path, "rb");
-  m_apploader.resize(file.GetSize());
-  if (m_apploader.size() < 0x20 || !file.ReadBytes(m_apploader.data(), m_apploader.size()))
+  m_apploader = std::move(apploader);
+  if (m_apploader.size() < 0x20)
   {
-    ERROR_LOG_FMT(DISCIO, "{} couldn't be accessed or is too small", path);
+    ERROR_LOG_FMT(DISCIO, "{} couldn't be accessed or is too small", log_path);
   }
   else
   {
     const size_t apploader_size = 0x20 + Common::swap32(*(u32*)&m_apploader[0x14]) +
                                   Common::swap32(*(u32*)&m_apploader[0x18]);
     if (apploader_size != m_apploader.size())
-      ERROR_LOG_FMT(DISCIO, "{} is the wrong size... Is it really an apploader?", path);
+      ERROR_LOG_FMT(DISCIO, "{} is the wrong size... Is it really an apploader?", log_path);
     else
       success = true;
   }
@@ -704,6 +732,16 @@ u64 DirectoryBlobPartition::SetDOLFromFile(const std::string& path, u64 dol_addr
 
   // Return FST address, 32 byte aligned (plus 32 byte padding)
   return Common::AlignUp(dol_address + dol_size + 0x20, 0x20ull);
+}
+
+u64 DirectoryBlobPartition::SetDOL(const std::vector<u8>& dol, u64 dol_address)
+{
+  m_contents.AddReference(dol_address, dol);
+
+  Write32(static_cast<u32>(dol_address >> m_address_shift), 0x0420, &m_disc_header);
+
+  // Return FST address, 32 byte aligned (plus 32 byte padding)
+  return Common::AlignUp(dol_address + dol.size() + 0x20, 0x20ull);
 }
 
 static std::vector<FSTBuilderNode> ConvertFSTEntriesToBuilderNodes(const File::FSTEntry& parent)

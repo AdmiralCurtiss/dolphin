@@ -126,13 +126,17 @@ public:
 
 private:
   void SetDiscHeaderFromFile(const std::string& boot_bin_path);
+  void SetDiscHeader(const std::vector<u8>& boot_bin);
   void SetDiscType(std::optional<bool> is_wii);
   void SetBI2FromFile(const std::string& bi2_path);
+  void SetBI2(const std::vector<u8>& bi2);
 
   // Returns DOL address
   u64 SetApploaderFromFile(const std::string& path);
+  u64 SetApploader(std::vector<u8> apploader, const std::string& log_path);
   // Returns FST address
   u64 SetDOLFromFile(const std::string& path, u64 dol_address);
+  u64 SetDOL(const std::vector<u8>& dol, u64 dol_address);
 
   void BuildFSTFromFolder(const std::string& fst_root_path, u64 fst_address);
 
