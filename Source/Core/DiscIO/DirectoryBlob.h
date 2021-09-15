@@ -5,6 +5,7 @@
 
 #include <array>
 #include <cstddef>
+#include <functional>
 #include <map>
 #include <memory>
 #include <optional>
@@ -119,7 +120,9 @@ public:
   DirectoryBlobPartition() = default;
   DirectoryBlobPartition(const std::string& root_directory, std::optional<bool> is_wii);
   DirectoryBlobPartition(DiscIO::VolumeDisc* volume, const DiscIO::Partition& partition,
-                         std::optional<bool> is_wii);
+                         std::optional<bool> is_wii,
+                         std::function<void(std::vector<u8>* dol)> main_dol_callback,
+                         std::function<void(std::vector<FSTBuilderNode>* nodes)> fst_callback);
 
   // We do not allow copying, because it might mess up the pointers inside DiscContents
   DirectoryBlobPartition(const DirectoryBlobPartition&) = delete;
@@ -192,7 +195,10 @@ class DirectoryBlobReader : public BlobReader
 
 public:
   static std::unique_ptr<DirectoryBlobReader> Create(const std::string& dol_path);
-  static std::unique_ptr<DirectoryBlobReader> Create(std::unique_ptr<DiscIO::VolumeDisc> volume);
+  static std::unique_ptr<DirectoryBlobReader>
+  Create(std::unique_ptr<DiscIO::VolumeDisc> volume,
+         std::function<void(std::vector<u8>* dol)> main_dol_callback,
+         std::function<void(std::vector<FSTBuilderNode>* nodes)> fst_callback);
 
   // We do not allow copying, because it might mess up the pointers inside DiscContents
   DirectoryBlobReader(const DirectoryBlobReader&) = delete;
@@ -228,7 +234,10 @@ private:
 
   explicit DirectoryBlobReader(const std::string& game_partition_root,
                                const std::string& true_root);
-  explicit DirectoryBlobReader(std::unique_ptr<DiscIO::VolumeDisc> volume);
+  explicit DirectoryBlobReader(
+      std::unique_ptr<DiscIO::VolumeDisc> volume,
+      std::function<void(std::vector<u8>* dol)> main_dol_callback,
+      std::function<void(std::vector<FSTBuilderNode>* nodes)> fst_callback);
 
   const DirectoryBlobPartition* GetPartition(u64 offset, u64 size, u64 partition_data_offset) const;
 
