@@ -110,6 +110,15 @@ bool DiscContent::Read(u64* offset, u64* length, u8** buffer) const
       const u8* const content_pointer = std::get<const u8*>(m_content_source) + offset_in_content;
       std::copy(content_pointer, content_pointer + bytes_to_read, *buffer);
     }
+    else if (std::holds_alternative<ContentVolume>(m_content_source))
+    {
+      const ContentVolume& source = std::get<ContentVolume>(m_content_source);
+      if (!source.m_volume->Read(source.m_offset + offset_in_content, bytes_to_read, *buffer,
+                                 source.m_partition))
+      {
+        return false;
+      }
+    }
     else
     {
       DirectoryBlobReader* blob = std::get<DirectoryBlobReader*>(m_content_source);
@@ -747,26 +756,22 @@ void DirectoryBlobReader::SetPartitionHeader(DirectoryBlobPartition* partition,
 static void GenerateBuilderNodesFromFileSystem(const DiscIO::VolumeDisc& volume,
                                                const DiscIO::Partition& partition,
                                                std::vector<FSTBuilderNode>* nodes,
-                                               const FileInfo& parent_info,
-                                               std::vector<std::vector<u8>>* data_storage)
+                                               const FileInfo& parent_info)
 {
   for (const FileInfo& file_info : parent_info)
   {
     if (file_info.IsDirectory())
     {
       std::vector<FSTBuilderNode> child_nodes;
-      GenerateBuilderNodesFromFileSystem(volume, partition, &child_nodes, file_info, data_storage);
+      GenerateBuilderNodesFromFileSystem(volume, partition, &child_nodes, file_info);
       nodes->emplace_back(FSTBuilderNode{file_info.GetName(), file_info.GetTotalChildren(),
                                          std::move(child_nodes)});
     }
     else
     {
-      // TODO: Just reference the volume instead of reading all the data into memory.
-      std::vector<u8>& data = data_storage->emplace_back();
-      data.resize(file_info.GetSize());
-      volume.Read(file_info.GetOffset(), file_info.GetSize(), data.data(), partition);
       std::vector<BuilderContentSource> source;
-      source.emplace_back(BuilderContentSource{0, file_info.GetSize(), ContentSource(data.data())});
+      source.emplace_back(BuilderContentSource{
+          0, file_info.GetSize(), ContentVolume{file_info.GetOffset(), &volume, partition}});
       nodes->emplace_back(
           FSTBuilderNode{file_info.GetName(), file_info.GetSize(), std::move(source)});
     }
@@ -830,7 +835,7 @@ DirectoryBlobPartition::DirectoryBlobPartition(DiscIO::VolumeDisc* volume,
     return;
 
   std::vector<FSTBuilderNode> nodes;
-  GenerateBuilderNodesFromFileSystem(*volume, partition, &nodes, fs->GetRoot(), &m_extra_data);
+  GenerateBuilderNodesFromFileSystem(*volume, partition, &nodes, fs->GetRoot());
   BuildFST(&nodes, new_fst_address);
 }
 

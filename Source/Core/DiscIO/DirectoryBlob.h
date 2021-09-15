@@ -41,10 +41,18 @@ struct ContentFile
   std::string m_filename;
 };
 
+struct ContentVolume
+{
+  u64 m_offset;
+  const DiscIO::Volume* m_volume;
+  DiscIO::Partition m_partition;
+};
+
 using ContentSource =
-    std::variant<ContentFile,          // File
-                 const u8*,            // Memory
-                 DirectoryBlobReader*  // Partition (which one it is is determined by m_offset)
+    std::variant<ContentFile,           // File
+                 const u8*,             // Memory
+                 DirectoryBlobReader*,  // Partition (which one it is is determined by m_offset)
+                 ContentVolume          // Read from a DiscIO::Volume
                  >;
 
 struct BuilderContentSource
