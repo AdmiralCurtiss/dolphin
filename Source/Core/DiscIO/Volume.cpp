@@ -85,7 +85,7 @@ std::map<Language, std::string> Volume::ReadWiiNames(const std::vector<char16_t>
   return names;
 }
 
-static std::unique_ptr<VolumeDisc> CreateDisc(std::unique_ptr<BlobReader>& reader)
+static std::unique_ptr<VolumeDisc> TryCreateDisc(std::unique_ptr<BlobReader>& reader)
 {
   if (reader->ReadSwapped<u32>(0x18) == WII_DISC_MAGIC)
     return std::make_unique<VolumeWii>(std::move(reader));
@@ -97,10 +97,15 @@ static std::unique_ptr<VolumeDisc> CreateDisc(std::unique_ptr<BlobReader>& reade
   return nullptr;
 }
 
+std::unique_ptr<VolumeDisc> CreateDisc(std::unique_ptr<BlobReader> reader)
+{
+  return TryCreateDisc(reader);
+}
+
 std::unique_ptr<VolumeDisc> CreateDisc(const std::string& path)
 {
   std::unique_ptr<BlobReader> reader(CreateBlobReader(path));
-  return reader ? CreateDisc(reader) : nullptr;
+  return reader ? CreateDisc(std::move(reader)) : nullptr;
 }
 
 static std::unique_ptr<VolumeWAD> CreateWAD(std::unique_ptr<BlobReader>& reader)
@@ -127,7 +132,7 @@ std::unique_ptr<Volume> CreateVolume(const std::string& path)
   if (reader == nullptr)
     return nullptr;
 
-  std::unique_ptr<VolumeDisc> disc = CreateDisc(reader);
+  std::unique_ptr<VolumeDisc> disc = TryCreateDisc(reader);
   if (disc)
     return disc;
 

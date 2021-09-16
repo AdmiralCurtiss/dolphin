@@ -56,6 +56,7 @@ namespace fs = std::filesystem;
 #include "Core/PowerPC/PPCSymbolDB.h"
 #include "Core/PowerPC/PowerPC.h"
 
+#include "DiscIO/DirectoryBlob.h"
 #include "DiscIO/Enums.h"
 #include "DiscIO/VolumeDisc.h"
 #include "DiscIO/VolumeWad.h"
@@ -173,6 +174,57 @@ BootParameters::GenerateFromFile(std::vector<std::string> paths,
     std::unique_ptr<DiscIO::VolumeDisc> disc = DiscIO::CreateDisc(path);
     if (disc)
     {
+      if (disc->GetBlobType() != DiscIO::BlobType::DIRECTORY && disc->GetGameID() == "STGJAF")
+      {
+        auto dirblob = DiscIO::DirectoryBlobReader::Create(
+            std::move(disc),
+            [](std::vector<u8>* dol) {
+              File::IOFile f("c:\\_graces\\wii-en-patched\\riivolution\\main.dol", "rb");
+              dol->resize(f.GetSize());
+              f.ReadBytes(dol->data(), dol->size());
+            },
+            [](std::vector<DiscIO::FSTBuilderNode>* fst) {
+              auto& nodes = *fst;
+
+              auto map0 =
+                  std::find_if(nodes.begin(), nodes.end(), [](const DiscIO::FSTBuilderNode& n) {
+                    return n.m_filename == "map0R.cpk";
+                  });
+              auto map1 =
+                  std::find_if(nodes.begin(), nodes.end(), [](const DiscIO::FSTBuilderNode& n) {
+                    return n.m_filename == "map1R.cpk";
+                  });
+              auto root =
+                  std::find_if(nodes.begin(), nodes.end(), [](const DiscIO::FSTBuilderNode& n) {
+                    return n.m_filename == "rootR.cpk";
+                  });
+
+              auto& map0c = std::get<std::vector<DiscIO::BuilderContentSource>>(map0->m_content);
+              map0c.emplace_back(DiscIO::BuilderContentSource{
+                  0x4A6925A0, 0x023036A0,
+                  DiscIO::ContentFile{0,
+                                      "c:\\_graces\\wii-en-patched\\riivolution\\map0R_v2_data"}});
+              map0c[0].m_size = map0c[1].m_offset;
+              map0->m_size = map0c[0].m_size + map0c[1].m_size;
+
+              auto& map1c = std::get<std::vector<DiscIO::BuilderContentSource>>(map1->m_content);
+              map1c.emplace_back(DiscIO::BuilderContentSource{
+                  0x25DFA4A0, 0x01E934E0,
+                  DiscIO::ContentFile{0,
+                                      "c:\\_graces\\wii-en-patched\\riivolution\\map1R_v2_data"}});
+              map1c[0].m_size = map1c[1].m_offset;
+              map1->m_size = map1c[0].m_size + map1c[1].m_size;
+
+              auto& rootc = std::get<std::vector<DiscIO::BuilderContentSource>>(root->m_content);
+              rootc.emplace_back(DiscIO::BuilderContentSource{
+                  0x30068A20, 0x00AEEC20,
+                  DiscIO::ContentFile{0,
+                                      "c:\\_graces\\wii-en-patched\\riivolution\\rootR_v2_data"}});
+              rootc[0].m_size = rootc[1].m_offset;
+              root->m_size = rootc[0].m_size + rootc[1].m_size;
+            });
+        disc = DiscIO::CreateDisc(std::move(dirblob));
+      }
       return std::make_unique<BootParameters>(Disc{std::move(path), std::move(disc), paths},
                                               savestate_path);
     }

@@ -182,6 +182,7 @@ protected:
   static const std::vector<u8> INVALID_CERT_CHAIN;
 };
 
+std::unique_ptr<VolumeDisc> CreateDisc(std::unique_ptr<BlobReader> reader);
 std::unique_ptr<VolumeDisc> CreateDisc(const std::string& path);
 std::unique_ptr<VolumeWAD> CreateWAD(const std::string& path);
 std::unique_ptr<Volume> CreateVolume(const std::string& path);
