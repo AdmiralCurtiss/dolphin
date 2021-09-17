@@ -108,6 +108,9 @@ struct Memory
 
 struct Patch
 {
+  // Internal name of this patch.
+  std::string m_id;
+
   // Defines a SD card path that all other paths are relative to.
   // We ignore this because we have no SD root, the user must specify this manually somehow.
   std::string m_root;
