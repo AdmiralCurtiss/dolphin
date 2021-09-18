@@ -281,6 +281,15 @@ static void ApplyPatchToFile(const Patch& patch, const File& file_patch,
 
   // Update the filesize of the file.
   file_node->m_size = target_filesize;
+
+  // Drop any source past the new end of the file -- this can happen on file truncation.
+  for (size_t i = content.size(); i > 0; --i)
+  {
+    if (content[i - 1].m_offset >= file_node->m_size)
+      content.erase(content.begin() + (i - 1));
+    else
+      break;
+  }
 }
 
 void ApplyPatchToDOL(const Patch& patch, DiscIO::FSTBuilderNode* dol_node)
