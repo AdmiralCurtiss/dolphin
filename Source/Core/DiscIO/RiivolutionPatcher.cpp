@@ -292,6 +292,50 @@ static void ApplyPatchToFile(const Patch& patch, const File& file_patch,
   }
 }
 
+static FSTBuilderNode* FindFileNodeInFST(std::string_view full_path,
+                                         std::vector<FSTBuilderNode>* fst,
+                                         bool create_if_not_exists)
+{
+  std::string_view path = full_path;
+  while (!path.empty() && path[0] == '/')
+    path = path.substr(1);
+  const size_t path_separator = path.find('/');
+  const bool is_file = path_separator == std::string_view::npos;
+  const std::string_view name = is_file ? path : path.substr(0, path_separator);
+  const auto it = std::find_if(fst->begin(), fst->end(),
+                               [&](const FSTBuilderNode& node) { return node.m_filename == name; });
+
+  if (it == fst->end())
+  {
+    if (!create_if_not_exists)
+      return nullptr;
+
+    if (is_file)
+    {
+      return &fst->emplace_back(
+          DiscIO::FSTBuilderNode{std::string(name), 0, std::vector<BuilderContentSource>()});
+    }
+
+    auto& new_folder = fst->emplace_back(
+        DiscIO::FSTBuilderNode{std::string(name), 0, std::vector<FSTBuilderNode>()});
+    return FindFileNodeInFST(path.substr(path_separator + 1),
+                             &std::get<std::vector<FSTBuilderNode>>(new_folder.m_content), true);
+  }
+
+  const bool is_existing_node_file =
+      std::holds_alternative<std::vector<BuilderContentSource>>(it->m_content);
+
+  if (is_file != is_existing_node_file)
+    return nullptr;
+
+  if (is_file)
+    return &*it;
+
+  return FindFileNodeInFST(path.substr(path_separator + 1),
+                           &std::get<std::vector<FSTBuilderNode>>(it->m_content),
+                           create_if_not_exists);
+}
+
 void ApplyPatchToDOL(const Patch& patch, DiscIO::FSTBuilderNode* dol_node)
 {
   const auto& files = patch.m_file_patches;
@@ -304,5 +348,11 @@ void ApplyPatchToDOL(const Patch& patch, DiscIO::FSTBuilderNode* dol_node)
 
 void ApplyPatchToFST(const Patch& patch, std::vector<DiscIO::FSTBuilderNode>* fst)
 {
+  for (const auto& file : patch.m_file_patches)
+  {
+    DiscIO::FSTBuilderNode* node = FindFileNodeInFST(file.m_disc, fst, file.m_create);
+    if (node)
+      ApplyPatchToFile(patch, file, node);
+  }
 }
 }  // namespace DiscIO::Riivolution
