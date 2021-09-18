@@ -119,6 +119,11 @@ bool DiscContent::Read(u64* offset, u64* length, u8** buffer) const
         return false;
       }
     }
+    else if (std::holds_alternative<ContentFixedByte>(m_content_source))
+    {
+      const ContentFixedByte& source = std::get<ContentFixedByte>(m_content_source);
+      std::memset(buffer, source.m_byte, bytes_to_read);
+    }
     else
     {
       DirectoryBlobReader* blob = std::get<DirectoryBlobReader*>(m_content_source);
@@ -346,7 +351,7 @@ std::unique_ptr<DirectoryBlobReader> DirectoryBlobReader::Create(const std::stri
 
 std::unique_ptr<DirectoryBlobReader>
 DirectoryBlobReader::Create(std::unique_ptr<DiscIO::VolumeDisc> volume,
-                            std::function<void(std::vector<u8>* dol)> main_dol_callback,
+                            std::function<void(FSTBuilderNode* dol_node)> main_dol_callback,
                             std::function<void(std::vector<FSTBuilderNode>* nodes)> fst_callback)
 {
   if (!volume)
@@ -402,7 +407,7 @@ DirectoryBlobReader::DirectoryBlobReader(const std::string& game_partition_root,
 
 DirectoryBlobReader::DirectoryBlobReader(
     std::unique_ptr<DiscIO::VolumeDisc> volume,
-    std::function<void(std::vector<u8>* dol)> main_dol_callback,
+    std::function<void(FSTBuilderNode* dol_node)> main_dol_callback,
     std::function<void(std::vector<FSTBuilderNode>* nodes)> fst_callback)
     : m_encryption_cache(this), m_wrapped_volume(std::move(volume))
 {
@@ -800,7 +805,7 @@ DirectoryBlobPartition::DirectoryBlobPartition(const std::string& root_directory
 
 DirectoryBlobPartition::DirectoryBlobPartition(
     DiscIO::VolumeDisc* volume, const DiscIO::Partition& partition, std::optional<bool> is_wii,
-    std::function<void(std::vector<u8>* dol)> main_dol_callback,
+    std::function<void(FSTBuilderNode* dol_node)> main_dol_callback,
     std::function<void(std::vector<FSTBuilderNode>* nodes)> fst_callback)
     : m_wrapped_partition(partition)
 {
@@ -825,21 +830,23 @@ DirectoryBlobPartition::DirectoryBlobPartition(
   }
   const u64 new_dol_address = SetApploader(apploader, "apploader");
 
-  std::vector<u8>& dol = m_extra_data.emplace_back();
+  FSTBuilderNode dol_node{"main.dol", 0, {}};
   const auto dol_offset = GetBootDOLOffset(*volume, partition);
   if (dol_offset)
   {
     const auto dol_size = GetBootDOLSize(*volume, partition, *dol_offset);
     if (dol_size)
     {
-      dol.resize(*dol_size);
-      if (!volume->Read(*dol_offset, *dol_size, dol.data(), partition))
-        dol.clear();
+      std::vector<BuilderContentSource> dol_contents;
+      dol_contents.emplace_back(
+          BuilderContentSource{0, *dol_size, ContentVolume{*dol_offset, volume, partition}});
+      dol_node.m_size = *dol_size;
+      dol_node.m_content = std::move(dol_contents);
     }
   }
   if (main_dol_callback)
-    main_dol_callback(&dol);
-  const u64 new_fst_address = SetDOL(dol, new_dol_address);
+    main_dol_callback(&dol_node);
+  const u64 new_fst_address = SetDOL(std::move(dol_node), new_dol_address);
 
   const FileSystem* fs = volume->GetFileSystem(partition);
   if (!fs || !fs->IsValid())
@@ -966,14 +973,15 @@ u64 DirectoryBlobPartition::SetDOLFromFile(const std::string& path, u64 dol_addr
   return Common::AlignUp(dol_address + dol_size + 0x20, 0x20ull);
 }
 
-u64 DirectoryBlobPartition::SetDOL(const std::vector<u8>& dol, u64 dol_address)
+u64 DirectoryBlobPartition::SetDOL(FSTBuilderNode dol_node, u64 dol_address)
 {
-  m_contents.AddReference(dol_address, dol);
+  for (auto& content : std::get<std::vector<BuilderContentSource>>(dol_node.m_content))
+    m_contents.Add(dol_address + content.m_offset, content.m_size, std::move(content.m_source));
 
   Write32(static_cast<u32>(dol_address >> m_address_shift), 0x0420, &m_disc_header);
 
   // Return FST address, 32 byte aligned (plus 32 byte padding)
-  return Common::AlignUp(dol_address + dol.size() + 0x20, 0x20ull);
+  return Common::AlignUp(dol_address + dol_node.m_size + 0x20, 0x20ull);
 }
 
 static std::vector<FSTBuilderNode> ConvertFSTEntriesToBuilderNodes(const File::FSTEntry& parent)

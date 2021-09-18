@@ -49,11 +49,17 @@ struct ContentVolume
   DiscIO::Partition m_partition;
 };
 
+struct ContentFixedByte
+{
+  u8 m_byte;
+};
+
 using ContentSource =
     std::variant<ContentFile,           // File
                  const u8*,             // Memory
                  DirectoryBlobReader*,  // Partition (which one it is is determined by m_offset)
-                 ContentVolume          // Read from a DiscIO::Volume
+                 ContentVolume,         // Read from a DiscIO::Volume
+                 ContentFixedByte       // Section that is filled with copies of a single byte
                  >;
 
 struct BuilderContentSource
@@ -121,7 +127,7 @@ public:
   DirectoryBlobPartition(const std::string& root_directory, std::optional<bool> is_wii);
   DirectoryBlobPartition(DiscIO::VolumeDisc* volume, const DiscIO::Partition& partition,
                          std::optional<bool> is_wii,
-                         std::function<void(std::vector<u8>* dol)> main_dol_callback,
+                         std::function<void(FSTBuilderNode* dol_node)> main_dol_callback,
                          std::function<void(std::vector<FSTBuilderNode>* nodes)> fst_callback);
 
   // We do not allow copying, because it might mess up the pointers inside DiscContents
@@ -155,7 +161,7 @@ private:
   u64 SetApploader(std::vector<u8> apploader, const std::string& log_path);
   // Returns FST address
   u64 SetDOLFromFile(const std::string& path, u64 dol_address);
-  u64 SetDOL(const std::vector<u8>& dol, u64 dol_address);
+  u64 SetDOL(FSTBuilderNode dol_node, u64 dol_address);
 
   void BuildFSTFromFolder(const std::string& fst_root_path, u64 fst_address);
 
@@ -197,7 +203,7 @@ public:
   static std::unique_ptr<DirectoryBlobReader> Create(const std::string& dol_path);
   static std::unique_ptr<DirectoryBlobReader>
   Create(std::unique_ptr<DiscIO::VolumeDisc> volume,
-         std::function<void(std::vector<u8>* dol)> main_dol_callback,
+         std::function<void(FSTBuilderNode* dol_node)> main_dol_callback,
          std::function<void(std::vector<FSTBuilderNode>* nodes)> fst_callback);
 
   // We do not allow copying, because it might mess up the pointers inside DiscContents
@@ -236,7 +242,7 @@ private:
                                const std::string& true_root);
   explicit DirectoryBlobReader(
       std::unique_ptr<DiscIO::VolumeDisc> volume,
-      std::function<void(std::vector<u8>* dol)> main_dol_callback,
+      std::function<void(FSTBuilderNode* dol_node)> main_dol_callback,
       std::function<void(std::vector<FSTBuilderNode>* nodes)> fst_callback);
 
   const DirectoryBlobPartition* GetPartition(u64 offset, u64 size, u64 partition_data_offset) const;

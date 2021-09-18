@@ -6,13 +6,14 @@
 #include <pugixml.hpp>
 
 #include "Common/IOFile.h"
+#include "DiscIO/DirectoryBlob.h"
 
 namespace DiscIO::Riivolution
 {
 std::optional<Disc> ParseFile(const std::string& filename, const std::string& game_id, u16 revision,
                               u8 disc_number)
 {
-  ::File::IOFile f(filename, "r");
+  ::File::IOFile f(filename, "rb");
   if (!f)
     return std::nullopt;
 
@@ -106,10 +107,10 @@ std::optional<Disc> ParseString(std::string_view xml, const std::string& game_id
       return std::nullopt;
   }
 
-  const auto patches = doc.children("patch");
+  const auto patches = wiidisc.children("patch");
   for (const auto& patch_node : patches)
   {
-    Patch patch;
+    Patch& patch = disc.m_patches.emplace_back();
     patch.m_id = patch_node.attribute("id").as_string();
     patch.m_root = replace_variables(patch_node.attribute("root").as_string());
 
@@ -124,7 +125,6 @@ std::optional<Disc> ParseString(std::string_view xml, const std::string& game_id
         file.m_resize = patch_subnode.attribute("resize").as_bool(true);
         file.m_create = patch_subnode.attribute("create").as_bool(false);
         file.m_offset = patch_subnode.attribute("offset").as_uint(0);
-        file.m_fileoffset = patch_subnode.attribute("fileoffset").as_uint(0);
         file.m_length = patch_subnode.attribute("length").as_uint(0);
       }
       else if (patch_name == "folder")
@@ -158,5 +158,142 @@ std::optional<Disc> ParseString(std::string_view xml, const std::string& game_id
   }
 
   return disc;
+}
+
+// 'before' and 'after' should be two copies of the same source
+// 'split_at' needs to be between the start and end of the source, may not match either boundary
+static void SplitAt(BuilderContentSource* before, BuilderContentSource* after, u64 split_at)
+{
+  const u64 start = before->m_offset;
+  const u64 size = before->m_size;
+  const u64 end = start + size;
+
+  // The source before the split point just needs its length reduced.
+  before->m_size = split_at - start;
+
+  // The source after the split needs its length reduced and its start point adjusted.
+  after->m_offset += before->m_size;
+  after->m_size = end - split_at;
+  if (std::holds_alternative<ContentFile>(after->m_source))
+    std::get<ContentFile>(after->m_source).m_offset += before->m_size;
+  else if (std::holds_alternative<const u8*>(after->m_source))
+    std::get<const u8*>(after->m_source) += before->m_size;
+  else if (std::holds_alternative<ContentVolume>(after->m_source))
+    std::get<ContentVolume>(after->m_source).m_offset += before->m_size;
+}
+
+static void ApplyPatchToFile(const Patch& patch, const File& file_patch,
+                             DiscIO::FSTBuilderNode* file_node)
+{
+  std::string external_filename = patch.m_root + "/" + file_patch.m_external;
+  ::File::IOFile f(external_filename, "rb");
+  if (!f)
+    return;
+
+  auto& content = std::get<std::vector<BuilderContentSource>>(file_node->m_content);
+
+  const u64 external_filesize = f.GetSize();
+
+  const u64 patch_start = file_patch.m_offset;
+  const u64 patch_size = file_patch.m_length == 0 ? external_filesize : file_patch.m_length;
+  const u64 patch_end = patch_start + patch_size;
+
+  const u64 target_filesize =
+      file_patch.m_resize ? patch_end : std::max(file_node->m_size, patch_end);
+
+  // If the patch is past the end of the existing file no existing content needs to be touched, just
+  // extend the file.
+  if (patch_start >= file_node->m_size)
+  {
+    if (patch_start > file_node->m_size)
+    {
+      // Insert an padding area between the old file and the patch data.
+      content.emplace_back(BuilderContentSource{file_node->m_size, patch_start - file_node->m_size,
+                                                ContentFixedByte{0}});
+    }
+
+    // Insert the actual patch data, possibly with zero-padding.
+    if (patch_size > external_filesize)
+    {
+      content.emplace_back(BuilderContentSource{patch_start, external_filesize,
+                                                ContentFile{0, std::move(external_filename)}});
+      content.emplace_back(BuilderContentSource{
+          patch_start + external_filesize, patch_size - external_filesize, ContentFixedByte{0}});
+    }
+    else
+    {
+      content.emplace_back(BuilderContentSource{patch_start, patch_size,
+                                                ContentFile{0, std::move(external_filename)}});
+    }
+  }
+  else
+  {
+    // Patch is at the start or somewhere in the middle of the existing file. At least one source
+    // needs to be modified or removed, and a new source with the patch data inserted instead.
+    // To make this easier, we first split up existing sources at the patch start and patch end
+    // offsets, then discard all overlapping sources and insert the patch sources there.
+    for (size_t i = 0; i < content.size(); ++i)
+    {
+      const u64 source_start = content[i].m_offset;
+      const u64 source_end = source_start + content[i].m_size;
+      if (patch_start > source_start && patch_start < source_end)
+      {
+        content.insert(content.begin() + i + 1, content[i]);
+        SplitAt(&content[i], &content[i + 1], patch_start);
+        continue;
+      }
+      if (patch_end > source_start && patch_end < source_end)
+      {
+        content.insert(content.begin() + i + 1, content[i]);
+        SplitAt(&content[i], &content[i + 1], patch_end);
+      }
+    }
+
+    // Now discard the overlapping areas and remember where they were.
+    size_t insert_where = 0;
+    for (size_t i = 0; i < content.size(); ++i)
+    {
+      if (patch_start == content[i].m_offset)
+      {
+        insert_where = i;
+        while (i < content.size() && patch_end >= content[i].m_offset + content[i].m_size)
+          content.erase(content.begin() + i);
+      }
+    }
+
+    // And finally, insert the patch data.
+    if (patch_size > external_filesize)
+    {
+      content.emplace(content.begin() + insert_where,
+                      BuilderContentSource{patch_start + external_filesize,
+                                           patch_size - external_filesize, ContentFixedByte{0}});
+      content.emplace(content.begin() + insert_where,
+                      BuilderContentSource{patch_start, external_filesize,
+                                           ContentFile{0, std::move(external_filename)}});
+    }
+    else
+    {
+      content.emplace(content.begin() + insert_where,
+                      BuilderContentSource{patch_start, patch_size,
+                                           ContentFile{0, std::move(external_filename)}});
+    }
+  }
+
+  // Update the filesize of the file.
+  file_node->m_size = target_filesize;
+}
+
+void ApplyPatchToDOL(const Patch& patch, DiscIO::FSTBuilderNode* dol_node)
+{
+  const auto& files = patch.m_file_patches;
+  auto main_dol_patch =
+      std::find_if(files.begin(), files.end(),
+                   [](const DiscIO::Riivolution::File& f) { return f.m_disc == "main.dol"; });
+  if (main_dol_patch != files.end())
+    ApplyPatchToFile(patch, *main_dol_patch, dol_node);
+}
+
+void ApplyPatchToFST(const Patch& patch, std::vector<DiscIO::FSTBuilderNode>* fst)
+{
 }
 }  // namespace DiscIO::Riivolution

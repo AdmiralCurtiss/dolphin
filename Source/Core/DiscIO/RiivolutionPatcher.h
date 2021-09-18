@@ -10,6 +10,11 @@
 
 #include "Common/CommonTypes.h"
 
+namespace DiscIO
+{
+struct FSTBuilderNode;
+}
+
 namespace DiscIO::Riivolution
 {
 // Replaces, adds, or modifies a file on disc.
@@ -31,9 +36,6 @@ struct File
 
   // Offset of where to start replacing bytes in the on-disc file.
   u32 m_offset = 0;
-
-  // Offset of where to start taking bytes from the external file.
-  u32 m_fileoffset = 0;
 
   // Amount of bytes to copy from the external file to the disc file.
   // TODO: If this is longer than the amount of bytes available in the external file, it's
@@ -112,7 +114,8 @@ struct Patch
   std::string m_id;
 
   // Defines a SD card path that all other paths are relative to.
-  // We ignore this because we have no SD root, the user must specify this manually somehow.
+  // We need to manually set this somehow because we have no SD root, and should ignore the path
+  // from the XML.
   std::string m_root;
 
   std::vector<File> m_file_patches;
@@ -136,4 +139,7 @@ std::optional<Disc> ParseFile(const std::string& filename, const std::string& ga
                               u8 disc_number);
 std::optional<Disc> ParseString(std::string_view xml, const std::string& game_id, u16 revision,
                                 u8 disc_number);
+
+void ApplyPatchToDOL(const Patch& patch, DiscIO::FSTBuilderNode* dol_node);
+void ApplyPatchToFST(const Patch& patch, std::vector<DiscIO::FSTBuilderNode>* fst);
 }  // namespace DiscIO::Riivolution
