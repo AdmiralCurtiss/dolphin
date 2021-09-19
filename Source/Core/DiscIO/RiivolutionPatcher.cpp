@@ -3,9 +3,14 @@
 
 #include "DiscIO/RiivolutionPatcher.h"
 
+#include <string>
+#include <string_view>
+#include <vector>
+
 #include <pugixml.hpp>
 
 #include "Common/IOFile.h"
+#include "Common/StringUtil.h"
 #include "DiscIO/DirectoryBlob.h"
 
 namespace DiscIO::Riivolution
@@ -52,11 +57,51 @@ std::optional<Disc> ParseString(std::string_view xml, const std::string& game_id
   const std::string_view game_developer = game_id_full.substr(4, 2);
 
   const auto replace_variables = [&](std::string_view sv) -> std::string {
-    return std::string(sv);
+    const auto replacements = std::array<std::pair<std::string_view, std::string_view>, 3>{
+        std::pair<std::string_view, std::string_view>{"{$__gameid}", game_id_no_region},
+        std::pair<std::string_view, std::string_view>{"{$__region}", game_region},
+        std::pair<std::string_view, std::string_view>{"{$__maker}", game_developer}};
+    std::string result;
+    result.reserve(sv.size());
+    while (!sv.empty())
+    {
+      bool replaced = false;
+      for (const auto& r : replacements)
+      {
+        if (sv.starts_with(r.first))
+        {
+          for (char c : r.second)
+            result.push_back(c);
+          sv = sv.substr(r.first.size());
+          replaced = true;
+          break;
+        }
+      }
+      if (replaced)
+        continue;
+      result.push_back(sv[0]);
+      sv = sv.substr(1);
+    }
+    return result;
   };
 
   const auto read_hex_string = [](std::string_view sv) -> std::vector<u8> {
-    return std::vector<u8>();
+    if ((sv.size() % 2) == 1)
+      return {};
+    if (sv.starts_with("0x"))
+      sv = sv.substr(2);
+
+    std::vector<u8> result;
+    result.reserve(sv.size() / 2);
+    while (!sv.empty())
+    {
+      u8 tmp;
+      if (!TryParse(std::string(sv.substr(0, 2)), &tmp, 16))
+        return {};
+      result.push_back(tmp);
+      sv = sv.substr(2);
+    }
+    return result;
   };
 
   pugi::xml_document doc;
