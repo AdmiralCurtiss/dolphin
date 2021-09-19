@@ -9,6 +9,7 @@
 
 #include <pugixml.hpp>
 
+#include "Common/FileUtil.h"
 #include "Common/IOFile.h"
 #include "Common/StringUtil.h"
 #include "DiscIO/DirectoryBlob.h"
@@ -227,10 +228,10 @@ static void SplitAt(BuilderContentSource* before, BuilderContentSource* after, u
     std::get<ContentVolume>(after->m_source).m_offset += before->m_size;
 }
 
-static void ApplyPatchToFile(const Patch& patch, const File& file_patch,
-                             DiscIO::FSTBuilderNode* file_node)
+static void ApplyPatchToFile(const Patch& patch, DiscIO::FSTBuilderNode* file_node,
+                             std::string external_filename, u64 file_patch_offset,
+                             u64 file_patch_length, bool resize)
 {
-  std::string external_filename = patch.m_root + "/" + file_patch.m_external;
   ::File::IOFile f(external_filename, "rb");
   if (!f)
     return;
@@ -239,12 +240,11 @@ static void ApplyPatchToFile(const Patch& patch, const File& file_patch,
 
   const u64 external_filesize = f.GetSize();
 
-  const u64 patch_start = file_patch.m_offset;
-  const u64 patch_size = file_patch.m_length == 0 ? external_filesize : file_patch.m_length;
+  const u64 patch_start = file_patch_offset;
+  const u64 patch_size = file_patch_length == 0 ? external_filesize : file_patch_length;
   const u64 patch_end = patch_start + patch_size;
 
-  const u64 target_filesize =
-      file_patch.m_resize ? patch_end : std::max(file_node->m_size, patch_end);
+  const u64 target_filesize = resize ? patch_end : std::max(file_node->m_size, patch_end);
 
   // If the patch is past the end of the existing file no existing content needs to be touched, just
   // extend the file.
@@ -337,6 +337,13 @@ static void ApplyPatchToFile(const Patch& patch, const File& file_patch,
   }
 }
 
+static void ApplyPatchToFile(const Patch& patch, const File& file_patch,
+                             DiscIO::FSTBuilderNode* file_node)
+{
+  ApplyPatchToFile(patch, file_node, patch.m_root + "/" + file_patch.m_external,
+                   file_patch.m_offset, file_patch.m_length, file_patch.m_resize);
+}
+
 static FSTBuilderNode* FindFileNodeInFST(std::string_view full_path,
                                          std::vector<FSTBuilderNode>* fst,
                                          bool create_if_not_exists)
@@ -367,18 +374,32 @@ static FSTBuilderNode* FindFileNodeInFST(std::string_view full_path,
                              &std::get<std::vector<FSTBuilderNode>>(new_folder.m_content), true);
   }
 
-  const bool is_existing_node_file =
-      std::holds_alternative<std::vector<BuilderContentSource>>(it->m_content);
-
+  const bool is_existing_node_file = it->IsFile();
   if (is_file != is_existing_node_file)
     return nullptr;
-
   if (is_file)
     return &*it;
 
   return FindFileNodeInFST(path.substr(path_separator + 1),
                            &std::get<std::vector<FSTBuilderNode>>(it->m_content),
                            create_if_not_exists);
+}
+
+static void FindFilenameNodesInFST(std::vector<DiscIO::FSTBuilderNode*>* nodes,
+                                   std::string_view filename, std::vector<FSTBuilderNode>* fst)
+{
+  for (FSTBuilderNode& node : *fst)
+  {
+    if (node.IsFolder())
+    {
+      FindFilenameNodesInFST(nodes, filename,
+                             &std::get<std::vector<FSTBuilderNode>>(node.m_content));
+      continue;
+    }
+
+    if (node.m_filename == filename)
+      nodes->push_back(&node);
+  }
 }
 
 void ApplyPatchToDOL(const Patch& patch, DiscIO::FSTBuilderNode* dol_node)
@@ -391,6 +412,45 @@ void ApplyPatchToDOL(const Patch& patch, DiscIO::FSTBuilderNode* dol_node)
     ApplyPatchToFile(patch, *main_dol_patch, dol_node);
 }
 
+static void ApplyFolderPatchToFST(const Patch& patch, const Folder& folder,
+                                  const ::File::FSTEntry& external_files,
+                                  const std::string& disc_path,
+                                  std::vector<DiscIO::FSTBuilderNode>* fst)
+{
+  for (const auto& child : external_files.children)
+  {
+    std::string child_disc_patch = disc_path + "/" + child.virtualName;
+    if (child.isDirectory)
+    {
+      ApplyFolderPatchToFST(patch, folder, child, child_disc_patch, fst);
+      continue;
+    }
+
+    DiscIO::FSTBuilderNode* node = FindFileNodeInFST(child_disc_patch, fst, folder.m_create);
+    if (node)
+      ApplyPatchToFile(patch, node, child.physicalName, 0, folder.m_length, folder.m_resize);
+  }
+}
+
+static void ApplyUnknownFolderPatchToFST(const Patch& patch, const Folder& folder,
+                                         const ::File::FSTEntry& external_files,
+                                         std::vector<DiscIO::FSTBuilderNode>* fst)
+{
+  for (const auto& child : external_files.children)
+  {
+    if (child.isDirectory)
+    {
+      ApplyUnknownFolderPatchToFST(patch, folder, child, fst);
+      continue;
+    }
+
+    std::vector<DiscIO::FSTBuilderNode*> nodes;
+    FindFilenameNodesInFST(&nodes, child.virtualName, fst);
+    for (auto* node : nodes)
+      ApplyPatchToFile(patch, node, child.physicalName, 0, folder.m_length, folder.m_resize);
+  }
+}
+
 void ApplyPatchToFST(const Patch& patch, std::vector<DiscIO::FSTBuilderNode>* fst)
 {
   for (const auto& file : patch.m_file_patches)
@@ -398,6 +458,17 @@ void ApplyPatchToFST(const Patch& patch, std::vector<DiscIO::FSTBuilderNode>* fs
     DiscIO::FSTBuilderNode* node = FindFileNodeInFST(file.m_disc, fst, file.m_create);
     if (node)
       ApplyPatchToFile(patch, file, node);
+  }
+
+  for (const auto& folder : patch.m_folder_patches)
+  {
+    ::File::FSTEntry external_files =
+        ::File::ScanDirectoryTree(patch.m_root + "/" + folder.m_external, folder.m_recursive);
+
+    if (folder.m_disc.empty())
+      ApplyUnknownFolderPatchToFST(patch, folder, external_files, fst);
+    else
+      ApplyFolderPatchToFST(patch, folder, external_files, folder.m_disc, fst);
   }
 }
 }  // namespace DiscIO::Riivolution

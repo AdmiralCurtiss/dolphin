@@ -1019,7 +1019,7 @@ static u32 ComputeNameSize(const std::vector<FSTBuilderNode>& files)
   u32 name_size = 0;
   for (const FSTBuilderNode& entry : files)
   {
-    if (std::holds_alternative<std::vector<FSTBuilderNode>>(entry.m_content))
+    if (entry.IsFolder())
       name_size += ComputeNameSize(std::get<std::vector<FSTBuilderNode>>(entry.m_content));
     name_size += static_cast<u32>(entry.m_filename.length() + 1);
   }
@@ -1036,7 +1036,7 @@ void DirectoryBlobPartition::BuildFST(std::vector<FSTBuilderNode>* root_nodes, u
   u64 total_entries = root_nodes->size() + 1;
   for (const FSTBuilderNode& entry : *root_nodes)
   {
-    if (std::holds_alternative<std::vector<FSTBuilderNode>>(entry.m_content))
+    if (entry.IsFolder())
       total_entries += entry.m_size;
   }
 
@@ -1110,7 +1110,7 @@ void DirectoryBlobPartition::WriteDirectory(std::vector<FSTBuilderNode>* parent_
 
   for (FSTBuilderNode& entry : sorted_entries)
   {
-    if (std::holds_alternative<std::vector<FSTBuilderNode>>(entry.m_content))
+    if (entry.IsFolder())
     {
       u32 entry_index = *fst_offset / ENTRY_SIZE;
       WriteEntryData(fst_offset, DIRECTORY_ENTRY, *name_offset, parent_entry_index,

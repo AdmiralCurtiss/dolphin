@@ -74,6 +74,12 @@ struct FSTBuilderNode
   std::string m_filename;
   u64 m_size;
   std::variant<std::vector<BuilderContentSource>, std::vector<FSTBuilderNode>> m_content;
+
+  bool IsFile() const
+  {
+    return std::holds_alternative<std::vector<BuilderContentSource>>(m_content);
+  }
+  bool IsFolder() const { return std::holds_alternative<std::vector<FSTBuilderNode>>(m_content); }
 };
 
 class DiscContent

@@ -47,8 +47,7 @@ struct File
 struct Folder
 {
   // Path of the folder on disc to modify.
-  // TODO: Can be left empty, but I don't understand what happens in this case, need to check
-  // that...
+  // Can be left empty to replace files matching the filename without specifying the folder.
   std::string m_disc;
 
   // Path of the folder on SD card to use for modification.

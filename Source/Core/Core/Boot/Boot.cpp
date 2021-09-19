@@ -177,10 +177,14 @@ BootParameters::GenerateFromFile(std::vector<std::string> paths,
     {
       if (disc->GetBlobType() != DiscIO::BlobType::DIRECTORY)
       {
+        // auto patches = DiscIO::Riivolution::ParseFile(
+        //    "c:\\_graces\\wii-en-patched\\riivolution\\STGJv2.xml", disc->GetGameID(),
+        //    disc->GetRevision().value_or(0), disc->GetDiscNumber().value_or(0));
+        // std::string patchroot = "c:\\_graces\\wii-en-patched\\riivolution";
         auto patches = DiscIO::Riivolution::ParseFile(
-            "c:\\_graces\\wii-en-patched\\riivolution\\STGJv2.xml", disc->GetGameID(),
+            "c:\\_newer\\riivolution\\NewerSMBW.xml", disc->GetGameID(),
             disc->GetRevision().value_or(0), disc->GetDiscNumber().value_or(0));
-        std::string patchroot = "c:\\_graces\\wii-en-patched\\riivolution\\";
+        std::string patchroot = "c:\\_newer\\NewerSMBW";
 
         if (patches && patches->m_patches.size() > 0)
         {
