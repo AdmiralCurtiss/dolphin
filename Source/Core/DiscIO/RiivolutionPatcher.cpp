@@ -12,6 +12,7 @@
 #include "Common/FileUtil.h"
 #include "Common/IOFile.h"
 #include "Common/StringUtil.h"
+#include "Core/PowerPC/MMU.h"
 #include "DiscIO/DirectoryBlob.h"
 
 namespace DiscIO::Riivolution
@@ -469,6 +470,55 @@ void ApplyPatchToFST(const Patch& patch, std::vector<DiscIO::FSTBuilderNode>* fs
       ApplyUnknownFolderPatchToFST(patch, folder, external_files, fst);
     else
       ApplyFolderPatchToFST(patch, folder, external_files, folder.m_disc, fst);
+  }
+}
+
+static void ApplyMemoryPatch(u32 offset, const std::vector<u8>& value,
+                             const std::vector<u8>& original)
+{
+  if (!original.empty())
+  {
+    for (u32 i = 0; i < value.size(); ++i)
+    {
+      auto result = PowerPC::HostTryReadU8(offset + i);
+      if (!result || result.value != original[i])
+        return;
+    }
+  }
+
+  for (u32 i = 0; i < value.size(); ++i)
+    PowerPC::HostTryWriteU8(value[i], offset + i);
+}
+
+static void ApplyMemoryPatch(const Patch& patch, const Memory& memory_patch)
+{
+  if (!memory_patch.m_valuefile.empty())
+  {
+    ::File::IOFile f(patch.m_root + "/" + memory_patch.m_valuefile, "rb");
+    if (!f)
+      return;
+    const u64 length = f.GetSize();
+    std::vector<u8> value;
+    value.resize(length);
+    if (!f.ReadBytes(value.data(), length))
+      return;
+
+    ApplyMemoryPatch(memory_patch.m_offset, value, memory_patch.m_original);
+    return;
+  }
+
+  ApplyMemoryPatch(memory_patch.m_offset, memory_patch.m_value, memory_patch.m_original);
+}
+
+void ApplyPatchToMemory(const Patch& patch)
+{
+  for (const auto& memory : patch.m_memory_patches)
+  {
+    // TODO: figure out what to do for these
+    if (memory.m_ocarina || memory.m_search)
+      continue;
+
+    ApplyMemoryPatch(patch, memory);
   }
 }
 }  // namespace DiscIO::Riivolution

@@ -62,6 +62,9 @@ namespace fs = std::filesystem;
 #include "DiscIO/VolumeDisc.h"
 #include "DiscIO/VolumeWad.h"
 
+// TODO: Figure out where to actually put this. Boot parameters maybe?
+static std::optional<DiscIO::Riivolution::Disc> s_riivolution_patches = std::nullopt;
+
 static std::vector<std::string> ReadM3UFile(const std::string& m3u_path,
                                             const std::string& folder_path)
 {
@@ -129,6 +132,8 @@ std::unique_ptr<BootParameters>
 BootParameters::GenerateFromFile(std::vector<std::string> paths,
                                  const std::optional<std::string>& savestate_path)
 {
+  s_riivolution_patches = std::nullopt;
+
   ASSERT(!paths.empty());
 
   const bool is_drive = Common::IsCDROMDevice(paths.front());
@@ -201,6 +206,7 @@ BootParameters::GenerateFromFile(std::vector<std::string> paths,
                   DiscIO::Riivolution::ApplyPatchToFST(p, fst);
               });
           disc = DiscIO::CreateDisc(std::move(dirblob));
+          s_riivolution_patches = std::move(patches);
         }
       }
       return std::make_unique<BootParameters>(Disc{std::move(path), std::move(disc), paths},
@@ -576,6 +582,12 @@ bool CBoot::BootUp(std::unique_ptr<BootParameters> boot)
 
   if (!std::visit(BootTitle(), boot->parameters))
     return false;
+
+  if (s_riivolution_patches)
+  {
+    for (auto& p : s_riivolution_patches->m_patches)
+      DiscIO::Riivolution::ApplyPatchToMemory(p);
+  }
 
   return true;
 }

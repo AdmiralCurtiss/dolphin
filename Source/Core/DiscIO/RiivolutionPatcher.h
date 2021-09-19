@@ -141,4 +141,5 @@ std::optional<Disc> ParseString(std::string_view xml, const std::string& game_id
 
 void ApplyPatchToDOL(const Patch& patch, DiscIO::FSTBuilderNode* dol_node);
 void ApplyPatchToFST(const Patch& patch, std::vector<DiscIO::FSTBuilderNode>* fst);
+void ApplyPatchToMemory(const Patch& patch);
 }  // namespace DiscIO::Riivolution
