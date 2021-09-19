@@ -1026,6 +1026,21 @@ static u32 ComputeNameSize(const std::vector<FSTBuilderNode>& files)
   return name_size;
 }
 
+static size_t RecalculateFolderSizes(std::vector<FSTBuilderNode>* fst)
+{
+  size_t size = 0;
+  for (FSTBuilderNode& entry : *fst)
+  {
+    ++size;
+    if (entry.IsFile())
+      continue;
+
+    entry.m_size = RecalculateFolderSizes(&std::get<std::vector<FSTBuilderNode>>(entry.m_content));
+    size += entry.m_size;
+  }
+  return size;
+}
+
 void DirectoryBlobPartition::BuildFST(std::vector<FSTBuilderNode>* root_nodes, u64 fst_address)
 {
   m_fst_data.clear();
@@ -1033,12 +1048,7 @@ void DirectoryBlobPartition::BuildFST(std::vector<FSTBuilderNode>* root_nodes, u
   u32 name_table_size = Common::AlignUp(ComputeNameSize(*root_nodes), 1ull << m_address_shift);
 
   // 1 extra for the root entry
-  u64 total_entries = root_nodes->size() + 1;
-  for (const FSTBuilderNode& entry : *root_nodes)
-  {
-    if (entry.IsFolder())
-      total_entries += entry.m_size;
-  }
+  u64 total_entries = RecalculateFolderSizes(root_nodes) + 1;
 
   const u64 name_table_offset = total_entries * ENTRY_SIZE;
   m_fst_data.resize(name_table_offset + name_table_size);
