@@ -815,7 +815,8 @@ void ExecuteCommand(ReplyType reply_type)
   DIInterruptType interrupt_type = DIInterruptType::TCINT;
   bool command_handled_by_thread = false;
 
-  // Swap's endian of Triforce DI commands, and zeroes out random bytes to prevent unknown read subcommand errors
+  // Swap's endian of Triforce DI commands, and zeroes out random bytes to prevent unknown read
+  // subcommand errors
   if (DVDThread::GetDiscType() == DiscIO::Platform::Triforce)
   {
     s_DICMDBUF[0] <<= 24;

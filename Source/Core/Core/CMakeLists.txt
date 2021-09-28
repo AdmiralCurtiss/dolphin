@@ -185,7 +185,7 @@ add_library(core
   HW/EXI/EXI_DeviceAD16.h
   HW/EXI/EXI_DeviceAGP.cpp
   HW/EXI/EXI_DeviceAGP.h
-	HW/EXI/EXI_DeviceBaseboard.cpp
+  HW/EXI/EXI_DeviceBaseboard.cpp
   HW/EXI/EXI_DeviceBaseboard.h
   HW/EXI/EXI_DeviceDummy.cpp
   HW/EXI/EXI_DeviceDummy.h

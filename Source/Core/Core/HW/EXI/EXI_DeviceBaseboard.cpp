@@ -40,7 +40,8 @@ void CEXIBaseboard::TransferByte(u8& byte)
       break;
     }
     default:
-      ERROR_LOG_FMT(EXPANSIONINTERFACE, "EXI BASEBOARD: Unhandled command {:#x} {:#x}", m_command, m_position);
+      ERROR_LOG_FMT(EXPANSIONINTERFACE, "EXI BASEBOARD: Unhandled command {:#x} {:#x}", m_command,
+                    m_position);
     }
   }
   m_position++;

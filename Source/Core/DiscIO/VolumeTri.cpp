@@ -201,7 +201,7 @@ VolumeTri::ConvertedGCBanner VolumeTri::LoadBannerFile() const
 }
 
 VolumeTri::ConvertedGCBanner VolumeTri::ExtractBannerInformation(const GCBanner& banner_file,
-                                                               bool is_bnr1) const
+                                                                 bool is_bnr1) const
 {
   ConvertedGCBanner banner;
 

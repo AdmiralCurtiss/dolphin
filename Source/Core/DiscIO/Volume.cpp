@@ -23,9 +23,9 @@
 #include "DiscIO/Enums.h"
 #include "DiscIO/VolumeDisc.h"
 #include "DiscIO/VolumeGC.h"
+#include "DiscIO/VolumeTri.h"
 #include "DiscIO/VolumeWad.h"
 #include "DiscIO/VolumeWii.h"
-#include "DiscIO/VolumeTri.h"
 
 namespace DiscIO
 {
