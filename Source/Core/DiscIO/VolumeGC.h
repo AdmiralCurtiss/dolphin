@@ -43,6 +43,7 @@ public:
 
   Platform GetVolumeType() const override;
   bool IsDatelDisc() const override;
+  bool IsTriforceGame() const;
   Region GetRegion() const override;
   BlobType GetBlobType() const override;
   u64 GetSize() const override;
@@ -74,6 +75,11 @@ private:
     u16 image[GC_BANNER_WIDTH * GC_BANNER_HEIGHT];  // RGB5A3 96x32 image
     GCBannerInformation information[6];             // information comes in six languages
                                                     // (only one for BNR1 type)
+  };
+
+  struct BootID
+  {
+    u32 id;  // BTID
   };
 
   struct ConvertedGCBanner
