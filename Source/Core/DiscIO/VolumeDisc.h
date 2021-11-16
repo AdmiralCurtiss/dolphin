@@ -24,7 +24,6 @@ public:
   std::string GetApploaderDate(const Partition& partition) const override;
   std::optional<u8> GetDiscNumber(const Partition& partition = PARTITION_NONE) const override;
   bool IsNKit() const override;
-  bool IsTriforceGame() const;
 
 protected:
   Region RegionCodeToRegion(std::optional<u32> region_code) const;

@@ -95,15 +95,6 @@ bool VolumeDisc::IsNKit() const
   return ReadSwapped<u32>(0x200, PARTITION_NONE) == NKIT_MAGIC;
 }
 
-bool VolumeDisc::IsTriforceGame() const
-{
-  constexpr u32 BTID_MAGIC = 0x42544944;  // "BTID"
-  return (ReadSwapped<u32>(0x00080000, PARTITION_NONE) == BTID_MAGIC) ||
-         (ReadSwapped<u32>(0x00400008, PARTITION_NONE) == BTID_MAGIC) ||
-         (ReadSwapped<u32>(0x00800000, PARTITION_NONE) == BTID_MAGIC) ||
-         (ReadSwapped<u32>(0x1262BEC8, PARTITION_NONE) == BTID_MAGIC);
-}
-
 void VolumeDisc::AddGamePartitionToSyncHash(mbedtls_sha1_context* context) const
 {
   const Partition partition = GetGamePartition();

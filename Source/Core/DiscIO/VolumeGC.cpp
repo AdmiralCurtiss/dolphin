@@ -142,6 +142,21 @@ bool VolumeGC::IsDatelDisc() const
   return !GetBootDOLOffset(*this, PARTITION_NONE).has_value();
 }
 
+bool VolumeGC::IsTriforceGame() const
+{
+  constexpr u32 BTID_MAGIC = 0x44495442;
+  BootID triforce_header;
+  const u64 file_size = ReadFile(*this, PARTITION_NONE, "boot.id",
+                                 reinterpret_cast<u8*>(&triforce_header), sizeof(BootID));
+  if (file_size < 4)
+  {
+    WARN_LOG_FMT(DISCIO, "Could not read boot.id.");
+    return {};  // Return early so that we don't access the uninitialized triforce_header.id
+  }
+
+  return triforce_header.id == BTID_MAGIC;
+}
+
 std::array<u8, 20> VolumeGC::GetSyncHash() const
 {
   mbedtls_sha1_context context;
