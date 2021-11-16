@@ -44,10 +44,14 @@ VolumeGC::VolumeGC(std::unique_ptr<BlobReader> reader)
 
   constexpr u32 BTID_MAGIC = 0x44495442;
   BootID triforce_header;
-  const u64 file_size = ReadFile(*this, PARTITION_NONE, "boot.id",
-                                 reinterpret_cast<u8*>(&triforce_header), sizeof(BootID));
-  if (file_size >= 4 && triforce_header.id == BTID_MAGIC)
-    m_is_triforce = true;
+  auto tmp_fs = std::make_unique<FileSystemGCWii>(this, PARTITION_NONE);
+  if (tmp_fs)
+  {
+    const u64 file_size = ReadFile(*this, PARTITION_NONE, tmp_fs->FindFileInfo("boot.id").get(),
+                                   reinterpret_cast<u8*>(&triforce_header), sizeof(BootID));
+    if (file_size >= 4 && triforce_header.id == BTID_MAGIC)
+      m_is_triforce = true;
+  }
 }
 
 VolumeGC::~VolumeGC()
