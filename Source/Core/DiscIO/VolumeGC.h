@@ -43,7 +43,7 @@ public:
 
   Platform GetVolumeType() const override;
   bool IsDatelDisc() const override;
-  bool IsTriforceGame() const override;
+  bool IsTriforceGame() const;
   Region GetRegion() const override;
   BlobType GetBlobType() const override;
   u64 GetSize() const override;
@@ -109,6 +109,8 @@ private:
   Common::Lazy<std::unique_ptr<FileSystem>> m_file_system;
 
   std::unique_ptr<BlobReader> m_reader;
+
+  bool m_is_triforce;
 };
 
 }  // namespace DiscIO

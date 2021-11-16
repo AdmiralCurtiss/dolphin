@@ -30,7 +30,8 @@
 
 namespace DiscIO
 {
-VolumeGC::VolumeGC(std::unique_ptr<BlobReader> reader) : m_reader(std::move(reader))
+VolumeGC::VolumeGC(std::unique_ptr<BlobReader> reader)
+    : m_reader(std::move(reader)), m_is_triforce(false)
 {
   ASSERT(m_reader);
 
@@ -40,6 +41,13 @@ VolumeGC::VolumeGC(std::unique_ptr<BlobReader> reader) : m_reader(std::move(read
   };
 
   m_converted_banner = [this] { return LoadBannerFile(); };
+
+  constexpr u32 BTID_MAGIC = 0x44495442;
+  BootID triforce_header;
+  const u64 file_size = ReadFile(*this, PARTITION_NONE, "boot.id",
+                                 reinterpret_cast<u8*>(&triforce_header), sizeof(BootID));
+  if (file_size >= 4 && triforce_header.id == BTID_MAGIC)
+    m_is_triforce = true;
 }
 
 VolumeGC::~VolumeGC()
@@ -144,17 +152,7 @@ bool VolumeGC::IsDatelDisc() const
 
 bool VolumeGC::IsTriforceGame() const
 {
-  constexpr u32 BTID_MAGIC = 0x44495442;
-  BootID triforce_header;
-  const u64 file_size = ReadFile(*this, PARTITION_NONE, "boot.id",
-                                 reinterpret_cast<u8*>(&triforce_header), sizeof(BootID));
-  if (file_size < 4)
-  {
-    WARN_LOG_FMT(DISCIO, "Could not read boot.id.");
-    return {};  // Return early so that we don't access the uninitialized triforce_header.id
-  }
-
-  return triforce_header.id == BTID_MAGIC;
+  return m_is_triforce;
 }
 
 std::array<u8, 20> VolumeGC::GetSyncHash() const
