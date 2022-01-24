@@ -181,6 +181,7 @@ const std::string& GetLayerName(LayerType layer)
   static const std::map<LayerType, std::string> layer_to_name = {
       {LayerType::Base, "Base"},
       {LayerType::GlobalGame, "Global GameINI"},
+      {LayerType::GlobalGameProfile, "Global Profile GameINI"},
       {LayerType::LocalGame, "Local GameINI"},
       {LayerType::Netplay, "Netplay"},
       {LayerType::Movie, "Movie"},

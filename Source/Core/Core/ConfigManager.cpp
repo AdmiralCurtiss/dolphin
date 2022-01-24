@@ -180,6 +180,8 @@ void SConfig::SetRunningGameMetadata(const std::string& game_id, const std::stri
 
   Config::AddLayer(ConfigLoaders::GenerateGlobalGameConfigLoader(game_id, revision));
   Config::AddLayer(ConfigLoaders::GenerateLocalGameConfigLoader(game_id, revision));
+  Config::AddLayer(ConfigLoaders::GenerateProfileGameConfigLoader(
+      game_id, revision, Config::Get(Config::MAIN_PERFORMANCE_PROFILE)));
 
   if (Core::IsRunning())
     DolphinAnalytics::Instance().ReportGameStart();

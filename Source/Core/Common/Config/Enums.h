@@ -13,6 +13,7 @@ enum class LayerType
   Base,
   CommandLine,
   GlobalGame,
+  GlobalGameProfile,
   LocalGame,
   Movie,
   Netplay,
@@ -35,11 +36,12 @@ enum class System
   Session,
 };
 
-constexpr std::array<LayerType, 7> SEARCH_ORDER{{
+constexpr std::array<LayerType, 8> SEARCH_ORDER{{
     LayerType::CurrentRun,
     LayerType::Netplay,
     LayerType::Movie,
     LayerType::LocalGame,
+    LayerType::GlobalGameProfile,
     LayerType::GlobalGame,
     LayerType::CommandLine,
     LayerType::Base,

@@ -1290,6 +1290,8 @@ bool NetPlayServer::SetupNetSettings()
       ConfigLoaders::GenerateGlobalGameConfigLoader(game->GetGameID(), game->GetRevision()));
   Config::AddLayer(
       ConfigLoaders::GenerateLocalGameConfigLoader(game->GetGameID(), game->GetRevision()));
+  Config::AddLayer(ConfigLoaders::GenerateProfileGameConfigLoader(
+      game->GetGameID(), game->GetRevision(), Config::Get(Config::MAIN_PERFORMANCE_PROFILE)));
 
   // Copy all relevant settings
   settings.m_CPUthread = Config::Get(Config::MAIN_CPU_THREAD);
@@ -1393,6 +1395,7 @@ bool NetPlayServer::SetupNetSettings()
 
   // Unload GameINI to restore things to normal
   Config::RemoveLayer(Config::LayerType::GlobalGame);
+  Config::RemoveLayer(Config::LayerType::GlobalGameProfile);
   Config::RemoveLayer(Config::LayerType::LocalGame);
 
   m_settings = settings;

@@ -222,6 +222,7 @@ void RestoreConfig()
   Config::RemoveLayer(Config::LayerType::Movie);
   Config::RemoveLayer(Config::LayerType::Netplay);
   Config::RemoveLayer(Config::LayerType::GlobalGame);
+  Config::RemoveLayer(Config::LayerType::GlobalGameProfile);
   Config::RemoveLayer(Config::LayerType::LocalGame);
   SConfig::GetInstance().ResetRunningGameMetadata();
 }

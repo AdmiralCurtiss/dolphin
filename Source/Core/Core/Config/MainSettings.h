@@ -178,6 +178,16 @@ extern const Info<int> MAIN_ISO_PATH_COUNT;
 std::vector<std::string> GetIsoPaths();
 void SetIsoPaths(const std::vector<std::string>& paths);
 
+enum class PerformanceProfileType
+{
+  Accurate,
+  Stable,
+  Performance,
+  MaxPerformance,
+};
+extern const Info<PerformanceProfileType> MAIN_PERFORMANCE_PROFILE;
+const char* GetPerformanceProfileTypeININame(PerformanceProfileType type);
+
 // Main.GBA
 
 #ifdef HAS_LIBMGBA

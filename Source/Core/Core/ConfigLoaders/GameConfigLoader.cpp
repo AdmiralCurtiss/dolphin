@@ -32,30 +32,40 @@
 namespace ConfigLoaders
 {
 // Returns all possible filenames in ascending order of priority
-std::vector<std::string> GetGameIniFilenames(const std::string& id, std::optional<u16> revision)
+std::vector<std::string> GetGameIniFilenames(const std::string& id, std::optional<u16> revision,
+                                             std::optional<Config::PerformanceProfileType> profile)
 {
   std::vector<std::string> filenames;
 
   if (id.empty())
     return filenames;
 
+  std::string profile_string = "";
+  if (profile)
+  {
+    const char* profile_name = Config::GetPerformanceProfileTypeININame(*profile);
+    if (!profile_name)
+      return filenames;
+    profile_string = fmt::format("-{}", profile_name);
+  }
+
   // Using the first letter or the 3 letters of the ID only makes sense
   // if the ID is an actual game ID (which has 6 characters).
   if (id.length() == 6)
   {
     // INIs that match the system code (unique for each Virtual Console system)
-    filenames.push_back(id.substr(0, 1) + ".ini");
+    filenames.push_back(fmt::format("{}{}.ini", id.substr(0, 1), profile_string));
 
     // INIs that match all regions
-    filenames.push_back(id.substr(0, 3) + ".ini");
+    filenames.push_back(fmt::format("{}{}.ini", id.substr(0, 3), profile_string));
   }
 
   // Regular INIs
-  filenames.push_back(id + ".ini");
+  filenames.push_back(fmt::format("{}{}.ini", id, profile_string));
 
   // INIs with specific revisions
   if (revision)
-    filenames.push_back(id + fmt::format("r{}", *revision) + ".ini");
+    filenames.push_back(fmt::format("{}r{}{}.ini", id, *revision, profile_string));
 
   return filenames;
 }
@@ -166,24 +176,31 @@ static std::pair<std::string, std::string> GetINILocationFromConfig(const Locati
 class INIGameConfigLayerLoader final : public Config::ConfigLayerLoader
 {
 public:
-  INIGameConfigLayerLoader(const std::string& id, u16 revision, bool global)
-      : ConfigLayerLoader(global ? Config::LayerType::GlobalGame : Config::LayerType::LocalGame),
-        m_id(id), m_revision(revision)
+  INIGameConfigLayerLoader(const std::string& id, u16 revision, Config::LayerType layerType,
+                           std::optional<Config::PerformanceProfileType> profile)
+      : ConfigLayerLoader(layerType), m_id(id), m_revision(revision), m_profile(profile)
   {
   }
 
   void Load(Config::Layer* layer) override
   {
     IniFile ini;
-    if (layer->GetLayer() == Config::LayerType::GlobalGame)
+    switch (layer->GetLayer())
     {
-      for (const std::string& filename : GetGameIniFilenames(m_id, m_revision))
+    case Config::LayerType::GlobalGame:
+      for (const std::string& filename : GetGameIniFilenames(m_id, m_revision, std::nullopt))
         ini.Load(File::GetSysDirectory() + GAMESETTINGS_DIR DIR_SEP + filename, true);
-    }
-    else
-    {
-      for (const std::string& filename : GetGameIniFilenames(m_id, m_revision))
+      break;
+    case Config::LayerType::GlobalGameProfile:
+      for (const std::string& filename : GetGameIniFilenames(m_id, m_revision, m_profile))
+        ini.Load(File::GetSysDirectory() + GAMESETTINGS_DIR DIR_SEP + filename, true);
+      break;
+    case Config::LayerType::LocalGame:
+      for (const std::string& filename : GetGameIniFilenames(m_id, m_revision, std::nullopt))
         ini.Load(File::GetUserPath(D_GAMESETTINGS_IDX) + filename, true);
+      break;
+    default:
+      return;
     }
 
     const std::list<IniFile::Section>& system_sections = ini.GetSections();
@@ -272,6 +289,7 @@ private:
 
   const std::string m_id;
   const u16 m_revision;
+  const std::optional<Config::PerformanceProfileType> m_profile;
 };
 
 void INIGameConfigLayerLoader::Save(Config::Layer* layer)
@@ -325,12 +343,22 @@ void INIGameConfigLayerLoader::Save(Config::Layer* layer)
 std::unique_ptr<Config::ConfigLayerLoader> GenerateGlobalGameConfigLoader(const std::string& id,
                                                                           u16 revision)
 {
-  return std::make_unique<INIGameConfigLayerLoader>(id, revision, true);
+  return std::make_unique<INIGameConfigLayerLoader>(id, revision, Config::LayerType::GlobalGame,
+                                                    std::nullopt);
+}
+
+std::unique_ptr<Config::ConfigLayerLoader>
+GenerateProfileGameConfigLoader(const std::string& id, u16 revision,
+                                Config::PerformanceProfileType profile)
+{
+  return std::make_unique<INIGameConfigLayerLoader>(id, revision,
+                                                    Config::LayerType::GlobalGameProfile, profile);
 }
 
 std::unique_ptr<Config::ConfigLayerLoader> GenerateLocalGameConfigLoader(const std::string& id,
                                                                          u16 revision)
 {
-  return std::make_unique<INIGameConfigLayerLoader>(id, revision, false);
+  return std::make_unique<INIGameConfigLayerLoader>(id, revision, Config::LayerType::LocalGame,
+                                                    std::nullopt);
 }
 }  // namespace ConfigLoaders

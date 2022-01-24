@@ -307,6 +307,26 @@ void SetIsoPaths(const std::vector<std::string>& paths)
   Config::SetBase(Config::MAIN_ISO_PATH_COUNT, MathUtil::SaturatingCast<int>(new_size));
 }
 
+const Info<PerformanceProfileType> MAIN_PERFORMANCE_PROFILE{
+    {System::Main, "General", "PerformanceProfile"}, PerformanceProfileType::Stable};
+
+const char* GetPerformanceProfileTypeININame(PerformanceProfileType type)
+{
+  switch (type)
+  {
+  case PerformanceProfileType::Accurate:
+    return "Accurate";
+  case PerformanceProfileType::Stable:
+    return "Stable";
+  case PerformanceProfileType::Performance:
+    return "Performance";
+  case PerformanceProfileType::MaxPerformance:
+    return "MaxPerformance";
+  default:
+    return nullptr;
+  };
+}
+
 // Main.GBA
 
 #ifdef HAS_LIBMGBA
