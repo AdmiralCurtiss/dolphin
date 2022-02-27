@@ -36,6 +36,7 @@
 #include "DolphinQt/GCMemcardManager.h"
 #include "DolphinQt/QtUtils/DolphinFileDialog.h"
 #include "DolphinQt/QtUtils/ModalMessageBox.h"
+#include "DolphinQt/QtUtils/SignalBlocking.h"
 #include "DolphinQt/Settings.h"
 #include "DolphinQt/Settings/BroadbandAdapterSettingsDialog.h"
 
@@ -52,6 +53,8 @@ GameCubePane::GameCubePane()
   CreateWidgets();
   LoadSettings();
   ConnectWidgets();
+
+  connect(&Settings::Instance(), &Settings::ConfigChanged, this, &GameCubePane::LoadSettings);
 }
 
 void GameCubePane::CreateWidgets()
@@ -437,9 +440,9 @@ void GameCubePane::BrowseGBASaves()
 void GameCubePane::LoadSettings()
 {
   // IPL Settings
-  m_skip_main_menu->setChecked(Config::Get(Config::MAIN_SKIP_IPL));
-  m_language_combo->setCurrentIndex(
-      m_language_combo->findData(Config::Get(Config::MAIN_GC_LANGUAGE)));
+  SignalBlocking(m_skip_main_menu)->setChecked(Config::Get(Config::MAIN_SKIP_IPL));
+  SignalBlocking(m_language_combo)
+      ->setCurrentIndex(m_language_combo->findData(Config::Get(Config::MAIN_GC_LANGUAGE)));
 
   bool have_menu = false;
 
@@ -470,12 +473,17 @@ void GameCubePane::LoadSettings()
 
 #ifdef HAS_LIBMGBA
   // GBA Settings
-  m_gba_threads->setChecked(Config::Get(Config::MAIN_GBA_THREADS));
-  m_gba_bios_edit->setText(QString::fromStdString(File::GetUserPath(F_GBABIOS_IDX)));
-  m_gba_save_rom_path->setChecked(Config::Get(Config::MAIN_GBA_SAVES_IN_ROM_PATH));
-  m_gba_saves_edit->setText(QString::fromStdString(File::GetUserPath(D_GBASAVES_IDX)));
+  SignalBlocking(m_gba_threads)->setChecked(Config::Get(Config::MAIN_GBA_THREADS));
+  SignalBlocking(m_gba_bios_edit)
+      ->setText(QString::fromStdString(File::GetUserPath(F_GBABIOS_IDX)));
+  SignalBlocking(m_gba_save_rom_path)->setChecked(Config::Get(Config::MAIN_GBA_SAVES_IN_ROM_PATH));
+  SignalBlocking(m_gba_saves_edit)
+      ->setText(QString::fromStdString(File::GetUserPath(D_GBASAVES_IDX)));
   for (size_t i = 0; i < m_gba_rom_edits.size(); ++i)
-    m_gba_rom_edits[i]->setText(QString::fromStdString(Config::Get(Config::MAIN_GBA_ROM_PATHS[i])));
+  {
+    SignalBlocking(m_gba_rom_edits[i])
+        ->setText(QString::fromStdString(Config::Get(Config::MAIN_GBA_ROM_PATHS[i])));
+  }
 #endif
 }
 
