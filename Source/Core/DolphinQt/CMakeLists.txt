@@ -382,6 +382,11 @@ if (WIN32)
 endif()
 
 if (MSVC)
+  # Disable some warnings
+  target_compile_options(dolphin-emu PRIVATE
+    /wd5054 # operator '+': deprecated between enumerations of different types (types defined in Qt headers)
+  )
+
   set(qtGui "")
   set(qtGuiPriv "")
   set(qtWidgetsPriv "")
