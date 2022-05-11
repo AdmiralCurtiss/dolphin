@@ -58,6 +58,8 @@ add_library(inputcommon
   ControllerInterface/CoreDevice.h
   ControllerInterface/MappingCommon.cpp
   ControllerInterface/MappingCommon.h
+  ControllerInterface/OctagonalMouseGate.cpp
+  ControllerInterface/OctagonalMouseGate.h
   ControllerInterface/Wiimote/WiimoteController.cpp
   ControllerInterface/Wiimote/WiimoteController.h
   ControlReference/ControlReference.cpp
