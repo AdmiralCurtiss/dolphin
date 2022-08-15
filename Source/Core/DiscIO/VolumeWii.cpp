@@ -324,6 +324,13 @@ u64 VolumeWii::PartitionOffsetToRawOffset(u64 offset, const Partition& partition
   return OffsetInHashedPartitionToRawOffset(offset, partition, data_offset);
 }
 
+PhysicalDataPositionInfo VolumeWii::PartitionReadToRawRead(u64 offset, u32 length,
+                                                           const Partition& partition) const
+{
+  return PhysicalDataPositionInfo{PartitionOffsetToRawOffset(offset, partition), length,
+                                  DataPositionType::Disc};
+}
+
 std::string VolumeWii::GetGameTDBID(const Partition& partition) const
 {
   return GetGameID(partition);

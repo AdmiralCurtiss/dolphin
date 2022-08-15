@@ -202,6 +202,13 @@ u64 PartitionOffsetToRawOffset(u64 offset, const DiscIO::Partition& partition)
   return s_disc->PartitionOffsetToRawOffset(offset, partition);
 }
 
+DiscIO::PhysicalDataPositionInfo PartitionReadToRawRead(u64 offset, u32 length,
+                                                        const DiscIO::Partition& partition)
+{
+  // PartitionReadToRawRead is thread-safe, so calling WaitUntilIdle isn't necessary.
+  return s_disc->PartitionReadToRawRead(offset, length, partition);
+}
+
 IOS::ES::TMDReader GetTMD(const DiscIO::Partition& partition)
 {
   WaitUntilIdle();

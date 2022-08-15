@@ -24,6 +24,7 @@ namespace DiscIO
 {
 enum class Platform;
 class Volume;
+struct PhysicalDataPositionInfo;
 }  // namespace DiscIO
 
 namespace IOS::ES
@@ -44,6 +45,8 @@ bool HasDisc();
 bool HasWiiHashes();
 DiscIO::Platform GetDiscType();
 u64 PartitionOffsetToRawOffset(u64 offset, const DiscIO::Partition& partition);
+DiscIO::PhysicalDataPositionInfo PartitionReadToRawRead(u64 offset, u32 length,
+                                                        const DiscIO::Partition& partition);
 IOS::ES::TMDReader GetTMD(const DiscIO::Partition& partition);
 IOS::ES::TicketReader GetTicket(const DiscIO::Partition& partition);
 bool IsInsertedDiscRunning();

@@ -39,6 +39,17 @@ struct Partition final
   constexpr bool operator>=(const Partition& other) const { return !(*this > other); }
   u64 offset{std::numeric_limits<u64>::max()};
 };
+enum class DataPositionType
+{
+  Disc,
+  SD,
+};
+struct PhysicalDataPositionInfo final
+{
+  u64 offset;
+  u32 length;
+  DataPositionType type;
+};
 
 constexpr Partition PARTITION_NONE(std::numeric_limits<u64>::max() - 1);
 
@@ -103,6 +114,18 @@ public:
   {
     return offset;
   }
+
+  // Returns for a given logical address and size within a partition the physical location of this
+  // data on the emulated media that needs to be accessed in order to read that data.
+  // In case the read spans multiple disjointed locations on the same medium or multiple media, the
+  // returned length will be shorter than the given one. In that case, advance the logical offset by
+  // the returned length and call the function again to obtain the next chunk.
+  virtual PhysicalDataPositionInfo PartitionReadToRawRead(u64 offset, u32 length,
+                                                          const Partition& partition) const
+  {
+    return PhysicalDataPositionInfo{offset, length, DataPositionType::Disc};
+  }
+
   virtual std::string GetGameID(const Partition& partition = PARTITION_NONE) const = 0;
   virtual std::string GetGameTDBID(const Partition& partition = PARTITION_NONE) const = 0;
   virtual std::string GetMakerID(const Partition& partition = PARTITION_NONE) const = 0;

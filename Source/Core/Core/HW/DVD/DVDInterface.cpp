@@ -199,6 +199,11 @@ static u64 PackFinishExecutingCommandUserdata(ReplyType reply_type, DIInterruptT
 static void ScheduleReads(u64 offset, u32 length, const DiscIO::Partition& partition,
                           u32 output_address, ReplyType reply_type);
 
+static void ScheduleReadsDisc(u64 offset, u32 length, const DiscIO::Partition& partition,
+                              u32 output_address, ReplyType reply_type, u64 current_time,
+                              u32 ticks_per_second, u64 dvd_offset,
+                              u64* ticks_until_completion_out);
+
 void DoState(PointerWrap& p)
 {
   p.DoPOD(s_DISR);
@@ -1384,10 +1389,37 @@ void FinishExecutingCommand(ReplyType reply_type, DIInterruptType interrupt_type
   }
 }
 
-// Determines from a given read request how much of the request is buffered,
-// and how much is required to be read from disc.
 static void ScheduleReads(u64 offset, u32 length, const DiscIO::Partition& partition,
                           u32 output_address, ReplyType reply_type)
+{
+  const u64 current_time = CoreTiming::GetTicks();
+  const u32 ticks_per_second = SystemTimers::GetTicksPerSecond();
+  u64 ticks_until_completion = 0;
+
+  do
+  {
+    const auto physical_location = DVDThread::PartitionReadToRawRead(offset, length, partition);
+    switch (physical_location.type)
+    {
+    case DiscIO::DataPositionType::Disc:
+    default:
+      ScheduleReadsDisc(offset, physical_location.length, partition, output_address, reply_type,
+                        current_time, ticks_per_second, physical_location.offset,
+                        &ticks_until_completion);
+      break;
+    }
+
+    length -= physical_location.length;
+    offset += physical_location.length;
+    output_address += physical_location.length;
+  } while (length > 0);
+}
+
+// Determines from a given read request how much of the request is buffered,
+// and how much is required to be read from disc.
+static void ScheduleReadsDisc(u64 offset, u32 length, const DiscIO::Partition& partition,
+                              u32 output_address, ReplyType reply_type, u64 current_time,
+                              u32 ticks_per_second, u64 dvd_offset, u64* ticks_until_completion_out)
 {
   // The drive continues to read 1 MiB beyond the last read position when idle.
   // If a future read falls within this window, part of the read may be returned
@@ -1398,8 +1430,6 @@ static void ScheduleReads(u64 offset, u32 length, const DiscIO::Partition& parti
   // faster than on real hardware, and if there's too much latency in the wrong
   // places, the video before the save-file select screen lags.
 
-  const u64 current_time = CoreTiming::GetTicks();
-  const u32 ticks_per_second = SystemTimers::GetTicksPerSecond();
   const bool wii_disc = DVDThread::GetDiscType() == DiscIO::Platform::WiiDisc;
 
   // Whether we have performed a seek.
@@ -1417,7 +1447,6 @@ static void ScheduleReads(u64 offset, u32 length, const DiscIO::Partition& parti
   // The variable dvd_offset tracks the actual offset on the DVD
   // that the disc drive starts reading at, which differs in two ways:
   // It's rounded to a whole ECC block and never uses Wii partition addressing.
-  u64 dvd_offset = DVDThread::PartitionOffsetToRawOffset(offset, partition);
   dvd_offset = Common::AlignDown(dvd_offset, DVD_ECC_BLOCK_SIZE);
   const u64 first_block = dvd_offset;
 
@@ -1476,8 +1505,8 @@ static void ScheduleReads(u64 offset, u32 length, const DiscIO::Partition& parti
   DEBUG_LOG_FMT(DVDINTERFACE, "Schedule reads: offset={:#x} length={:#x} address={:#x}", offset,
                 length, output_address);
 
-  s64 ticks_until_completion =
-      READ_COMMAND_LATENCY_US * (SystemTimers::GetTicksPerSecond() / 1000000);
+  u64 ticks_until_completion =
+      *ticks_until_completion_out + READ_COMMAND_LATENCY_US * (ticks_per_second / 1000000);
 
   u32 buffered_blocks = 0;
   u32 unbuffered_blocks = 0;
@@ -1544,7 +1573,7 @@ static void ScheduleReads(u64 offset, u32 length, const DiscIO::Partition& parti
     // Schedule this read to complete at the appropriate time
     const ReplyType chunk_reply_type = chunk_length == length ? reply_type : ReplyType::NoReply;
     DVDThread::StartReadToEmulatedRAM(output_address, offset, chunk_length, partition,
-                                      chunk_reply_type, ticks_until_completion);
+                                      chunk_reply_type, static_cast<s64>(ticks_until_completion));
 
     // Advance the read window
     output_address += chunk_length;
@@ -1605,7 +1634,9 @@ static void ScheduleReads(u64 offset, u32 length, const DiscIO::Partition& parti
                 "Schedule reads: ECC blocks unbuffered={}, buffered={}, "
                 "ticks={}, time={} us",
                 unbuffered_blocks, buffered_blocks, ticks_until_completion,
-                ticks_until_completion * 1000000 / SystemTimers::GetTicksPerSecond());
+                ticks_until_completion * 1000000 / ticks_per_second);
+
+  *ticks_until_completion_out = ticks_until_completion;
 }
 
 }  // namespace DVDInterface
