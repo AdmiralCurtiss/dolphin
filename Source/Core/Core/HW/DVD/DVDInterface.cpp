@@ -204,6 +204,10 @@ static void ScheduleReadsDisc(u64 offset, u32 length, const DiscIO::Partition& p
                               u32 ticks_per_second, u64 dvd_offset,
                               u64* ticks_until_completion_out);
 
+static void ScheduleReadsSD(u64 offset, u32 length, const DiscIO::Partition& partition,
+                            u32 output_address, ReplyType reply_type, u64 current_time,
+                            u32 ticks_per_second, u64 dvd_offset, u64* ticks_until_completion_out);
+
 void DoState(PointerWrap& p)
 {
   p.DoPOD(s_DISR);
@@ -1398,14 +1402,23 @@ static void ScheduleReads(u64 offset, u32 length, const DiscIO::Partition& parti
 
   do
   {
+    // TODO: Should current_time be advanced through this loop? Or maybe the functions need to
+    // handle an input ticks_until_completion != 0 in some special way?
     const auto physical_location = DVDThread::PartitionReadToRawRead(offset, length, partition);
     switch (physical_location.type)
     {
     case DiscIO::DataPositionType::Disc:
     default:
-      ScheduleReadsDisc(offset, physical_location.length, partition, output_address, reply_type,
+      ScheduleReadsDisc(offset, physical_location.length, partition, output_address,
+                        physical_location.length == length ? reply_type : ReplyType::NoReply,
                         current_time, ticks_per_second, physical_location.offset,
                         &ticks_until_completion);
+      break;
+    case DiscIO::DataPositionType::SD:
+      ScheduleReadsSD(offset, physical_location.length, partition, output_address,
+                      physical_location.length == length ? reply_type : ReplyType::NoReply,
+                      current_time, ticks_per_second, physical_location.offset,
+                      &ticks_until_completion);
       break;
     }
 
@@ -1635,6 +1648,20 @@ static void ScheduleReadsDisc(u64 offset, u32 length, const DiscIO::Partition& p
                 "ticks={}, time={} us",
                 unbuffered_blocks, buffered_blocks, ticks_until_completion,
                 ticks_until_completion * 1000000 / ticks_per_second);
+
+  *ticks_until_completion_out = ticks_until_completion;
+}
+
+static void ScheduleReadsSD(u64 offset, u32 length, const DiscIO::Partition& partition,
+                            u32 output_address, ReplyType reply_type, u64 current_time,
+                            u32 ticks_per_second, u64 dvd_offset, u64* ticks_until_completion_out)
+{
+  // completely arbitrary, TODO: measure this or something
+  u64 ticks_until_completion = *ticks_until_completion_out +
+                               (static_cast<u64>(length) * ticks_per_second) / (8 * 1024 * 1024);
+
+  DVDThread::StartReadToEmulatedRAM(output_address, offset, length, partition, reply_type,
+                                    static_cast<s64>(ticks_until_completion));
 
   *ticks_until_completion_out = ticks_until_completion;
 }
