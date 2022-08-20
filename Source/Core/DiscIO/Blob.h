@@ -22,10 +22,12 @@
 
 #include "Common/CommonTypes.h"
 #include "Common/Swap.h"
+#include "DiscIO/Enums.h"  // TODO: only for PhysicalDataPositionInfo
 
 namespace DiscIO
 {
 enum class WIARVZCompressionType : u32;
+struct Partition;
 
 // Increment CACHE_REVISION (GameFileCache.cpp) if the enum below is modified
 enum class BlobType
@@ -91,6 +93,12 @@ public:
   }
 
   virtual bool ReadWiiDecrypted(u64 offset, u64 size, u8* out_ptr, u64 partition_data_offset)
+  {
+    return false;
+  }
+
+  virtual bool GetPhysicalPosition(u64 offset, u32 length, u64 partition_data_offset,
+                                   PhysicalDataPositionInfo* out) const
   {
     return false;
   }

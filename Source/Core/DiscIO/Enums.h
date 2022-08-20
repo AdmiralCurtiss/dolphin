@@ -68,6 +68,19 @@ enum class Language
   Unknown
 };
 
+// TODO: move these
+enum class DataPositionType
+{
+  Disc,
+  SD,
+};
+struct PhysicalDataPositionInfo final
+{
+  u64 offset;
+  u32 length;
+  DataPositionType type;
+};
+
 std::string GetName(Country country, bool translate);
 std::string GetName(Language language, bool translate);
 

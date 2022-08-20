@@ -200,6 +200,22 @@ bool DiscContentContainer::Read(u64 offset, u64 length, u8* buffer) const
   return true;
 }
 
+bool DiscContentContainer::GetPhysicalPosition(u64 offset, u32 length,
+                                               PhysicalDataPositionInfo* out) const
+{
+  std::set<DiscContent>::const_iterator it = m_contents.upper_bound(DiscContent(offset));
+  if (it == m_contents.end())
+    return false;
+
+  const u64 physical_position = it->GetOffset() /* it->GetPhysPos() */ + offset - it->GetOffset();
+  const u32 remaining_bytes_in_this_content =
+      static_cast<u32>(std::min<u64>(length, it->GetEndOffset() - offset));
+  out->offset = physical_position;
+  out->length = remaining_bytes_in_this_content;
+  out->type = DataPositionType::SD; /* it->GetPhysPosType() */
+  return true;
+}
+
 static std::optional<PartitionType> ParsePartitionDirectoryName(const std::string& name)
 {
   if (name.size() < 2)
@@ -511,6 +527,17 @@ bool DirectoryBlobReader::ReadWiiDecrypted(u64 offset, u64 size, u8* buffer,
     return false;
 
   return partition->GetContents().Read(offset, size, buffer);
+}
+
+bool DirectoryBlobReader::GetPhysicalPosition(u64 offset, u32 length, u64 partition_data_offset,
+                                              PhysicalDataPositionInfo* out) const
+{
+  // pass length as 0 here because it's fine if the end offset is after the end of the partition
+  const DirectoryBlobPartition* partition = GetPartition(offset, 0, partition_data_offset);
+  if (!partition)
+    return false;
+
+  return partition->GetContents().GetPhysicalPosition(offset, length, out);
 }
 
 bool DirectoryBlobReader::EncryptPartitionData(u64 offset, u64 size, u8* buffer,

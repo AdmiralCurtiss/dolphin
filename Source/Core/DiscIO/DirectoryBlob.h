@@ -180,6 +180,7 @@ public:
   u64 CheckSizeAndAdd(u64 offset, u64 max_size, const std::string& path);
 
   bool Read(u64 offset, u64 length, u8* buffer) const;
+  bool GetPhysicalPosition(u64 offset, u32 length, PhysicalDataPositionInfo* out) const;
 
 private:
   std::set<DiscContent> m_contents;
@@ -280,6 +281,9 @@ public:
   bool Read(u64 offset, u64 length, u8* buffer) override;
   bool SupportsReadWiiDecrypted(u64 offset, u64 size, u64 partition_data_offset) const override;
   bool ReadWiiDecrypted(u64 offset, u64 size, u8* buffer, u64 partition_data_offset) override;
+
+  bool GetPhysicalPosition(u64 offset, u32 length, u64 partition_data_offset,
+                           PhysicalDataPositionInfo* out) const override;
 
   BlobType GetBlobType() const override;
 

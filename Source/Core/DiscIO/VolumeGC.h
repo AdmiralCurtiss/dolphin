@@ -41,6 +41,9 @@ public:
   std::map<Language, std::string> GetDescriptions() const override;
   std::vector<u32> GetBanner(u32* width, u32* height) const override;
 
+  PhysicalDataPositionInfo PartitionReadToRawRead(u64 offset, u32 length,
+                                                  const Partition& partition) const override;
+
   Platform GetVolumeType() const override;
   bool IsDatelDisc() const override;
   Region GetRegion() const override;

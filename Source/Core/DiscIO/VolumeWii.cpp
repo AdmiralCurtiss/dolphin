@@ -327,6 +327,14 @@ u64 VolumeWii::PartitionOffsetToRawOffset(u64 offset, const Partition& partition
 PhysicalDataPositionInfo VolumeWii::PartitionReadToRawRead(u64 offset, u32 length,
                                                            const Partition& partition) const
 {
+  auto it = m_partitions.find(partition);
+  if (it != m_partitions.end())
+  {
+    const u64 partition_data_offset = partition.offset + *it->second.data_offset;
+    PhysicalDataPositionInfo physical;
+    if (m_reader->GetPhysicalPosition(offset, length, partition_data_offset, &physical))
+      return physical;
+  }
   return PhysicalDataPositionInfo{PartitionOffsetToRawOffset(offset, partition), length,
                                   DataPositionType::Disc};
 }

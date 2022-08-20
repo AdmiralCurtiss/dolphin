@@ -114,6 +114,15 @@ std::vector<u32> VolumeGC::GetBanner(u32* width, u32* height) const
   return m_converted_banner->image_buffer;
 }
 
+PhysicalDataPositionInfo VolumeGC::PartitionReadToRawRead(u64 offset, u32 length,
+                                                          const Partition& partition) const
+{
+  PhysicalDataPositionInfo physical;
+  if (m_reader->GetPhysicalPosition(offset, length, 0, &physical))
+    return physical;
+  return PhysicalDataPositionInfo{offset, length, DataPositionType::Disc};
+}
+
 BlobType VolumeGC::GetBlobType() const
 {
   return m_reader->GetBlobType();
