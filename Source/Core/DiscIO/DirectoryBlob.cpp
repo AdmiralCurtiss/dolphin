@@ -203,6 +203,9 @@ bool DiscContentContainer::Read(u64 offset, u64 length, u8* buffer) const
 bool DiscContentContainer::GetPhysicalPosition(u64 offset, u32 length,
                                                PhysicalDataPositionInfo* out) const
 {
+  // FIXME: This currently assigns the free space between files to the file after the space; it
+  // would be a lot more sensible to assign it to the file before the space.
+
   std::set<DiscContent>::const_iterator it = m_contents.upper_bound(DiscContent(offset));
   if (it == m_contents.end())
     return false;
