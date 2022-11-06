@@ -128,12 +128,14 @@ std::unique_ptr<MMIO::Mapping> mmio_mapping;
 
 static void InitMMIO(bool is_wii)
 {
+  auto& system = Core::System::GetInstance();
+
   mmio_mapping = std::make_unique<MMIO::Mapping>();
 
   CommandProcessor::RegisterMMIO(mmio_mapping.get(), 0x0C000000);
   PixelEngine::RegisterMMIO(mmio_mapping.get(), 0x0C001000);
   VideoInterface::RegisterMMIO(mmio_mapping.get(), 0x0C002000);
-  ProcessorInterface::RegisterMMIO(mmio_mapping.get(), 0x0C003000);
+  system.GetProcessorInterfaceState().RegisterMMIO(mmio_mapping.get(), 0x0C003000);
   MemoryInterface::RegisterMMIO(mmio_mapping.get(), 0x0C004000);
   DSP::RegisterMMIO(mmio_mapping.get(), 0x0C005000);
   DVDInterface::RegisterMMIO(mmio_mapping.get(), 0x0C006000, false);

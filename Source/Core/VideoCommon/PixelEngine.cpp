@@ -288,13 +288,14 @@ void RegisterMMIO(MMIO::Mapping* mmio, u32 base)
 
 static void UpdateInterrupts()
 {
+  auto& system = Core::System::GetInstance();
+  auto& pi = system.GetProcessorInterfaceState();
+
   // check if there is a token-interrupt
-  ProcessorInterface::SetInterrupt(INT_CAUSE_PE_TOKEN,
-                                   s_signal_token_interrupt && m_Control.pe_token_enable);
+  pi.SetInterrupt(INT_CAUSE_PE_TOKEN, s_signal_token_interrupt && m_Control.pe_token_enable);
 
   // check if there is a finish-interrupt
-  ProcessorInterface::SetInterrupt(INT_CAUSE_PE_FINISH,
-                                   s_signal_finish_interrupt && m_Control.pe_finish_enable);
+  pi.SetInterrupt(INT_CAUSE_PE_FINISH, s_signal_finish_interrupt && m_Control.pe_finish_enable);
 }
 
 static void SetTokenFinish_OnMainThread(Core::System& system, u64 userdata, s64 cyclesLate)

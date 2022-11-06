@@ -7,6 +7,14 @@
 
 class PointerWrap;
 
+namespace Core
+{
+class System;
+}
+namespace CoreTiming
+{
+struct EventType;
+}
 namespace MMIO
 {
 class Mapping;
@@ -52,30 +60,44 @@ enum
   PI_FLIPPER_UNK = 0x30  // BS1 writes 0x0245248A to it - prolly some bootstrap thing
 };
 
-extern u32 m_InterruptCause;
-extern u32 m_InterruptMask;
-extern u32 Fifo_CPUBase;
-extern u32 Fifo_CPUEnd;
-extern u32 Fifo_CPUWritePointer;
-
-void Init();
-void DoState(PointerWrap& p);
-
-void RegisterMMIO(MMIO::Mapping* mmio, u32 base);
-
-inline u32 GetMask()
+class ProcessorInterfaceState
 {
-  return m_InterruptMask;
-}
-inline u32 GetCause()
-{
-  return m_InterruptCause;
-}
+public:
+  void Init();
+  void DoState(PointerWrap& p);
 
-void SetInterrupt(u32 cause_mask, bool set = true);
+  void RegisterMMIO(MMIO::Mapping* mmio, u32 base);
 
-// Thread-safe func which sets and clears reset button state automagically
-void ResetButton_Tap();
-void PowerButton_Tap();
+  u32 GetMask() { return m_InterruptMask; }
+  u32 GetCause() { return m_InterruptCause; }
 
+  void SetInterrupt(u32 cause_mask, bool set = true);
+
+  // Thread-safe func which sets and clears reset button state automagically
+  void ResetButton_Tap();
+  void PowerButton_Tap();
+
+  u32 m_InterruptCause;
+  u32 m_InterruptMask;
+  u32 Fifo_CPUBase;
+  u32 Fifo_CPUEnd;
+  u32 Fifo_CPUWritePointer;
+
+private:
+  // Let the PPC know that an external exception is set/cleared
+  void UpdateException();
+
+  void SetResetButton(Core::System& system, bool set);
+
+  // callbacks for scheduling reset button presses/releases
+  static void ToggleResetButtonCallback(Core::System& system, u64 userdata, s64 cyclesLate);
+  static void IOSNotifyResetButtonCallback(Core::System& system, u64 userdata, s64 cyclesLate);
+  static void IOSNotifyPowerButtonCallback(Core::System& system, u64 userdata, s64 cyclesLate);
+
+  u32 m_ResetCode;
+
+  CoreTiming::EventType* toggleResetButton;
+  CoreTiming::EventType* iosNotifyResetButton;
+  CoreTiming::EventType* iosNotifyPowerButton;
+};
 }  // namespace ProcessorInterface

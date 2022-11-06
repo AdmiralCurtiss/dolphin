@@ -63,6 +63,7 @@
 #include "Core/IOS/USB/Bluetooth/WiimoteDevice.h"
 #include "Core/NetPlayProto.h"
 #include "Core/State.h"
+#include "Core/System.h"
 #include "Core/WiiUtils.h"
 
 #include "DiscIO/Enums.h"
@@ -1268,7 +1269,10 @@ void PlayController(GCPadStatus* PadStatus, int controllerID)
   }
 
   if (s_padState.reset)
-    ProcessorInterface::ResetButton_Tap();
+  {
+    auto& system = Core::System::GetInstance();
+    system.GetProcessorInterfaceState().ResetButton_Tap();
+  }
 
   SetInputDisplayString(s_padState, controllerID);
   CheckInputEnd();

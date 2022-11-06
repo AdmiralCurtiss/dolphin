@@ -27,11 +27,14 @@
 #include "Core/HW/WII_IPC.h"
 #include "Core/IOS/IOS.h"
 #include "Core/State.h"
+#include "Core/System.h"
 
 namespace HW
 {
 void Init(const Sram* override_sram)
 {
+  auto& system = Core::System::GetInstance();
+
   CoreTiming::Init();
   SystemTimers::PreInit();
 
@@ -41,7 +44,7 @@ void Init(const Sram* override_sram)
   AudioInterface::Init();
   VideoInterface::Init();
   SerialInterface::Init();
-  ProcessorInterface::Init();
+  system.GetProcessorInterfaceState().Init();
   ExpansionInterface::Init(override_sram);  // Needs to be initialized before Memory
   HSP::Init();
   Memory::Init();  // Needs to be initialized before AddressSpace
@@ -84,6 +87,8 @@ void Shutdown()
 
 void DoState(PointerWrap& p)
 {
+  auto& system = Core::System::GetInstance();
+
   Memory::DoState(p);
   p.DoMarker("Memory");
   MemoryInterface::DoState(p);
@@ -92,7 +97,7 @@ void DoState(PointerWrap& p)
   p.DoMarker("VideoInterface");
   SerialInterface::DoState(p);
   p.DoMarker("SerialInterface");
-  ProcessorInterface::DoState(p);
+  system.GetProcessorInterfaceState().DoState(p);
   p.DoMarker("ProcessorInterface");
   DSP::DoState(p);
   p.DoMarker("DSP");

@@ -724,13 +724,14 @@ void RegisterMMIO(MMIO::Mapping* mmio, u32 base, bool is_wii)
 
 static void UpdateInterrupts()
 {
-  auto& state = Core::System::GetInstance().GetDVDInterfaceState().GetData();
+  auto& system = Core::System::GetInstance();
+  auto& state = system.GetDVDInterfaceState().GetData();
   const bool set_mask = (state.DISR.DEINT & state.DISR.DEINTMASK) != 0 ||
                         (state.DISR.TCINT & state.DISR.TCINTMASK) != 0 ||
                         (state.DISR.BRKINT & state.DISR.BRKINTMASK) != 0 ||
                         (state.DICVR.CVRINT & state.DICVR.CVRINTMASK) != 0;
 
-  ProcessorInterface::SetInterrupt(ProcessorInterface::INT_CAUSE_DI, set_mask);
+  system.GetProcessorInterfaceState().SetInterrupt(ProcessorInterface::INT_CAUSE_DI, set_mask);
 
   // Required for Summoner: A Goddess Reborn
   CoreTiming::ForceExceptionCheck(50);

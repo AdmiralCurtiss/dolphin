@@ -13,6 +13,7 @@
 #include "Core/HW/ProcessorInterface.h"
 #include "Core/PowerPC/JitInterface.h"
 #include "Core/PowerPC/PowerPC.h"
+#include "Core/System.h"
 #include "VideoCommon/CommandProcessor.h"
 
 namespace GPFifo
@@ -82,9 +83,12 @@ void ResetGatherPipe()
 
 void UpdateGatherPipe()
 {
+  auto& system = Core::System::GetInstance();
+  auto& pi = system.GetProcessorInterfaceState();
+
   size_t pipe_count = GetGatherPipeCount();
   size_t processed;
-  u8* cur_mem = Memory::GetPointer(ProcessorInterface::Fifo_CPUWritePointer);
+  u8* cur_mem = Memory::GetPointer(pi.Fifo_CPUWritePointer);
   for (processed = 0; pipe_count >= GATHER_PIPE_SIZE; processed += GATHER_PIPE_SIZE)
   {
     // copy the GatherPipe
@@ -92,15 +96,15 @@ void UpdateGatherPipe()
     pipe_count -= GATHER_PIPE_SIZE;
 
     // increase the CPUWritePointer
-    if (ProcessorInterface::Fifo_CPUWritePointer == ProcessorInterface::Fifo_CPUEnd)
+    if (pi.Fifo_CPUWritePointer == pi.Fifo_CPUEnd)
     {
-      ProcessorInterface::Fifo_CPUWritePointer = ProcessorInterface::Fifo_CPUBase;
-      cur_mem = Memory::GetPointer(ProcessorInterface::Fifo_CPUWritePointer);
+      pi.Fifo_CPUWritePointer = pi.Fifo_CPUBase;
+      cur_mem = Memory::GetPointer(pi.Fifo_CPUWritePointer);
     }
     else
     {
       cur_mem += GATHER_PIPE_SIZE;
-      ProcessorInterface::Fifo_CPUWritePointer += GATHER_PIPE_SIZE;
+      pi.Fifo_CPUWritePointer += GATHER_PIPE_SIZE;
     }
 
     CommandProcessor::GatherPipeBursted();

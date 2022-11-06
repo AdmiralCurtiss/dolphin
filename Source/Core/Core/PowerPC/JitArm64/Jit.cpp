@@ -915,7 +915,9 @@ bool JitArm64::DoJit(u32 em_address, JitBlock* b, u32 nextPC)
       SetJumpTarget(exception);
       LDR(IndexType::Unsigned, ARM64Reg::W30, PPC_REG, PPCSTATE_OFF(msr));
       TBZ(ARM64Reg::W30, 15, done_here);  // MSR.EE
-      MOVP2R(ARM64Reg::X30, &ProcessorInterface::m_InterruptCause);
+      auto& system = Core::System::GetInstance();
+      auto& pi = system.GetProcessorInterfaceState();
+      MOVP2R(ARM64Reg::X30, &pi.m_InterruptCause);
       LDR(IndexType::Unsigned, ARM64Reg::W30, ARM64Reg::X30, 0);
       constexpr u32 cause_mask = ProcessorInterface::INT_CAUSE_CP |
                                  ProcessorInterface::INT_CAUSE_PE_TOKEN |
@@ -951,7 +953,9 @@ bool JitArm64::DoJit(u32 em_address, JitBlock* b, u32 nextPC)
       SetJumpTarget(exception);
       LDR(IndexType::Unsigned, WA, PPC_REG, PPCSTATE_OFF(msr));
       TBZ(WA, 15, done_here);  // MSR.EE
-      MOVP2R(XA, &ProcessorInterface::m_InterruptCause);
+      auto& system = Core::System::GetInstance();
+      auto& pi = system.GetProcessorInterfaceState();
+      MOVP2R(XA, &pi.m_InterruptCause);
       LDR(IndexType::Unsigned, WA, XA, 0);
       constexpr u32 cause_mask = ProcessorInterface::INT_CAUSE_CP |
                                  ProcessorInterface::INT_CAUSE_PE_TOKEN |

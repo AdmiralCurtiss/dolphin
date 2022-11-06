@@ -11,6 +11,7 @@
 #include "Core/HW/MMIO.h"
 #include "Core/HW/ProcessorInterface.h"
 #include "Core/IOS/IOS.h"
+#include "Core/System.h"
 
 // This is the intercommunication between ARM and PPC. Currently only PPC actually uses it, because
 // of the IOS HLE
@@ -296,8 +297,8 @@ static void UpdateInterrupts(Core::System& system, u64 userdata, s64 cyclesLate)
   }
 
   // Generate interrupt on PI if any of the devices behind starlet have an interrupt and mask is set
-  ProcessorInterface::SetInterrupt(ProcessorInterface::INT_CAUSE_WII_IPC,
-                                   !!(ppc_irq_flags & ppc_irq_masks));
+  system.GetProcessorInterfaceState().SetInterrupt(ProcessorInterface::INT_CAUSE_WII_IPC,
+                                                   !!(ppc_irq_flags & ppc_irq_masks));
 }
 
 void ClearX1()

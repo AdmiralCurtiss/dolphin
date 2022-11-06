@@ -14,6 +14,7 @@
 #include "Core/PowerPC/Jit64/RegCache/JitRegCache.h"
 #include "Core/PowerPC/Jit64Common/Jit64PowerPCState.h"
 #include "Core/PowerPC/PowerPC.h"
+#include "Core/System.h"
 
 using namespace Gen;
 
@@ -450,7 +451,9 @@ void Jit64::mtmsr(UGeckoInstruction inst)
   FixupBranch noExceptionsPending = J_CC(CC_Z, true);
 
   // Check if a CP interrupt is waiting and keep the GPU emulation in sync (issue 4336)
-  MOV(64, R(RSCRATCH), ImmPtr(&ProcessorInterface::m_InterruptCause));
+  auto& system = Core::System::GetInstance();
+  auto& pi = system.GetProcessorInterfaceState();
+  MOV(64, R(RSCRATCH), ImmPtr(&pi.m_InterruptCause));
   TEST(32, MatR(RSCRATCH), Imm32(ProcessorInterface::INT_CAUSE_CP));
   FixupBranch cpInt = J_CC(CC_NZ);
 

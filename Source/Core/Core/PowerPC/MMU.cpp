@@ -373,7 +373,8 @@ static void WriteToHardware(u32 em_address, const u32 data, const u32 size)
     // TODO: This interrupt is supposed to have associated cause and address registers
     // TODO: This should trigger the hwtest's interrupt handling, but it does not seem to
     //       (https://github.com/dolphin-emu/hwtests/pull/42)
-    ProcessorInterface::SetInterrupt(ProcessorInterface::INT_CAUSE_PI);
+    auto& system = Core::System::GetInstance();
+    system.GetProcessorInterfaceState().SetInterrupt(ProcessorInterface::INT_CAUSE_PI);
 
     const u32 rotated_data = Common::RotateRight(data, ((em_address & 0x3) + size) * 8);
 

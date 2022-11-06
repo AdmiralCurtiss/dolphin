@@ -342,6 +342,9 @@ void RegisterMMIO(MMIO::Mapping* mmio, u32 base)
 
 void GatherPipeBursted()
 {
+  auto& system = Core::System::GetInstance();
+  auto& pi = system.GetProcessorInterfaceState();
+
   SetCPStatusFromCPU();
 
   // if we aren't linked, we don't care about gather pipe data
@@ -351,8 +354,8 @@ void GatherPipeBursted()
     {
       // In multibuffer mode is not allowed write in the same FIFO attached to the GPU.
       // Fix Pokemon XD in DC mode.
-      if ((ProcessorInterface::Fifo_CPUEnd == fifo.CPEnd.load(std::memory_order_relaxed)) &&
-          (ProcessorInterface::Fifo_CPUBase == fifo.CPBase.load(std::memory_order_relaxed)) &&
+      if ((pi.Fifo_CPUEnd == fifo.CPEnd.load(std::memory_order_relaxed)) &&
+          (pi.Fifo_CPUBase == fifo.CPBase.load(std::memory_order_relaxed)) &&
           fifo.CPReadWriteDistance.load(std::memory_order_relaxed) > 0)
       {
         Fifo::FlushGpu();
@@ -375,9 +378,9 @@ void GatherPipeBursted()
 
   if (m_CPCtrlReg.GPReadEnable && m_CPCtrlReg.GPLinkEnable)
   {
-    ProcessorInterface::Fifo_CPUWritePointer = fifo.CPWritePointer.load(std::memory_order_relaxed);
-    ProcessorInterface::Fifo_CPUBase = fifo.CPBase.load(std::memory_order_relaxed);
-    ProcessorInterface::Fifo_CPUEnd = fifo.CPEnd.load(std::memory_order_relaxed);
+    pi.Fifo_CPUWritePointer = fifo.CPWritePointer.load(std::memory_order_relaxed);
+    pi.Fifo_CPUBase = fifo.CPBase.load(std::memory_order_relaxed);
+    pi.Fifo_CPUEnd = fifo.CPEnd.load(std::memory_order_relaxed);
   }
 
   // If the game is running close to overflowing, make the exception checking more frequent.
@@ -396,30 +399,28 @@ void GatherPipeBursted()
 
   // check if we are in sync
   ASSERT_MSG(COMMANDPROCESSOR,
-             fifo.CPWritePointer.load(std::memory_order_relaxed) ==
-                 ProcessorInterface::Fifo_CPUWritePointer,
+             fifo.CPWritePointer.load(std::memory_order_relaxed) == pi.Fifo_CPUWritePointer,
              "FIFOs linked but out of sync");
-  ASSERT_MSG(COMMANDPROCESSOR,
-             fifo.CPBase.load(std::memory_order_relaxed) == ProcessorInterface::Fifo_CPUBase,
+  ASSERT_MSG(COMMANDPROCESSOR, fifo.CPBase.load(std::memory_order_relaxed) == pi.Fifo_CPUBase,
              "FIFOs linked but out of sync");
-  ASSERT_MSG(COMMANDPROCESSOR,
-             fifo.CPEnd.load(std::memory_order_relaxed) == ProcessorInterface::Fifo_CPUEnd,
+  ASSERT_MSG(COMMANDPROCESSOR, fifo.CPEnd.load(std::memory_order_relaxed) == pi.Fifo_CPUEnd,
              "FIFOs linked but out of sync");
 }
 
 void UpdateInterrupts(u64 userdata)
 {
+  auto& system = Core::System::GetInstance();
   if (userdata)
   {
     s_interrupt_set.Set();
     DEBUG_LOG_FMT(COMMANDPROCESSOR, "Interrupt set");
-    ProcessorInterface::SetInterrupt(INT_CAUSE_CP, true);
+    system.GetProcessorInterfaceState().SetInterrupt(INT_CAUSE_CP, true);
   }
   else
   {
     s_interrupt_set.Clear();
     DEBUG_LOG_FMT(COMMANDPROCESSOR, "Interrupt cleared");
-    ProcessorInterface::SetInterrupt(INT_CAUSE_CP, false);
+    system.GetProcessorInterfaceState().SetInterrupt(INT_CAUSE_CP, false);
   }
   CoreTiming::ForceExceptionCheck(0);
   s_interrupt_waiting.Clear();
@@ -537,7 +538,8 @@ void SetCPStatusFromCPU()
       {
         s_interrupt_set.Set(interrupt);
         DEBUG_LOG_FMT(COMMANDPROCESSOR, "Interrupt set");
-        ProcessorInterface::SetInterrupt(INT_CAUSE_CP, interrupt);
+        auto& system = Core::System::GetInstance();
+        system.GetProcessorInterfaceState().SetInterrupt(INT_CAUSE_CP, interrupt);
       }
     }
     else

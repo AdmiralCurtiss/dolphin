@@ -18,6 +18,7 @@
 #include "Core/HW/SystemTimers.h"
 #include "Core/Movie.h"
 #include "Core/NetPlayProto.h"
+#include "Core/System.h"
 #include "InputCommon/GCPadStatus.h"
 
 namespace SerialInterface
@@ -266,7 +267,8 @@ CSIDevice_GCController::HandleButtonCombos(const GCPadStatus& pad_status)
       if (m_last_button_combo == COMBO_RESET)
       {
         INFO_LOG_FMT(SERIALINTERFACE, "PAD - COMBO_RESET");
-        ProcessorInterface::ResetButton_Tap();
+        auto& system = Core::System::GetInstance();
+        system.GetProcessorInterfaceState().ResetButton_Tap();
       }
       else if (m_last_button_combo == COMBO_ORIGIN)
       {
