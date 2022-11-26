@@ -44,10 +44,6 @@ struct SCPFifoStruct
   void DoState(PointerWrap& p);
 };
 
-// This one is shared between gfx thread and emulator thread.
-// It is only used by the Fifo and by the CommandProcessor.
-extern SCPFifoStruct fifo;
-
 // internal hardware addresses
 enum
 {

@@ -28,7 +28,6 @@ static CoreTiming::EventType* et_UpdateInterrupts;
 // TODO(ector): Warn on bbox read/write
 
 // STATE_TO_SAVE
-SCPFifoStruct fifo;
 static UCPStatusReg m_CPStatusReg;
 static UCPCtrlReg m_CPCtrlReg;
 static UCPClearReg m_CPClearReg;
@@ -107,6 +106,8 @@ void SCPFifoStruct::DoState(PointerWrap& p)
 
 void DoState(PointerWrap& p)
 {
+  auto& fifo = Core::System::GetInstance().GetCommandProcessorFifo();
+
   p.Do(m_CPStatusReg);
   p.Do(m_CPCtrlReg);
   p.Do(m_CPClearReg);
@@ -129,6 +130,8 @@ static inline void WriteHigh(std::atomic<u32>& reg, u16 highbits)
 
 void Init()
 {
+  auto& fifo = Core::System::GetInstance().GetCommandProcessorFifo();
+
   m_CPStatusReg.Hex = 0;
   m_CPStatusReg.CommandIdle = 1;
   m_CPStatusReg.ReadIdle = 1;
@@ -166,6 +169,8 @@ void RegisterMMIO(MMIO::Mapping* mmio, u32 base)
   constexpr u16 WMASK_ALL = 0xffff;
   constexpr u16 WMASK_LO_ALIGN_32BIT = 0xffe0;
   const u16 WMASK_HI_RESTRICT = GetPhysicalAddressMask() >> 16;
+
+  auto& fifo = Core::System::GetInstance().GetCommandProcessorFifo();
 
   struct
   {
@@ -270,7 +275,8 @@ void RegisterMMIO(MMIO::Mapping* mmio, u32 base)
   MMIO::ReadHandlingMethod<u16>* fifo_rw_distance_lo_r;
   if (is_on_thread)
   {
-    fifo_rw_distance_lo_r = MMIO::ComplexRead<u16>([](Core::System&, u32) {
+    fifo_rw_distance_lo_r = MMIO::ComplexRead<u16>([](Core::System& system, u32) {
+      auto& fifo = system.GetCommandProcessorFifo();
       if (fifo.CPWritePointer.load(std::memory_order_relaxed) >=
           fifo.SafeCPReadPointer.load(std::memory_order_relaxed))
       {
@@ -297,7 +303,8 @@ void RegisterMMIO(MMIO::Mapping* mmio, u32 base)
   MMIO::ReadHandlingMethod<u16>* fifo_rw_distance_hi_r;
   if (is_on_thread)
   {
-    fifo_rw_distance_hi_r = MMIO::ComplexRead<u16>([](Core::System&, u32) {
+    fifo_rw_distance_hi_r = MMIO::ComplexRead<u16>([](Core::System& system, u32) {
+      auto& fifo = system.GetCommandProcessorFifo();
       Fifo::SyncGPUForRegisterAccess();
       if (fifo.CPWritePointer.load(std::memory_order_relaxed) >=
           fifo.SafeCPReadPointer.load(std::memory_order_relaxed))
@@ -318,13 +325,15 @@ void RegisterMMIO(MMIO::Mapping* mmio, u32 base)
   }
   else
   {
-    fifo_rw_distance_hi_r = MMIO::ComplexRead<u16>([](Core::System&, u32) {
+    fifo_rw_distance_hi_r = MMIO::ComplexRead<u16>([](Core::System& system, u32) {
+      auto& fifo = system.GetCommandProcessorFifo();
       Fifo::SyncGPUForRegisterAccess();
       return fifo.CPReadWriteDistance.load(std::memory_order_relaxed) >> 16;
     });
   }
   mmio->Register(base | FIFO_RW_DISTANCE_HI, fifo_rw_distance_hi_r,
-                 MMIO::ComplexWrite<u16>([WMASK_HI_RESTRICT](Core::System&, u32, u16 val) {
+                 MMIO::ComplexWrite<u16>([WMASK_HI_RESTRICT](Core::System& system, u32, u16 val) {
+                   auto& fifo = system.GetCommandProcessorFifo();
                    Fifo::SyncGPUForRegisterAccess();
                    WriteHigh(fifo.CPReadWriteDistance, val & WMASK_HI_RESTRICT);
                    Fifo::RunGpu();
@@ -340,11 +349,13 @@ void RegisterMMIO(MMIO::Mapping* mmio, u32 base)
   MMIO::WriteHandlingMethod<u16>* fifo_read_hi_w;
   if (is_on_thread)
   {
-    fifo_read_hi_r = MMIO::ComplexRead<u16>([](Core::System&, u32) {
+    fifo_read_hi_r = MMIO::ComplexRead<u16>([](Core::System& system, u32) {
+      auto& fifo = system.GetCommandProcessorFifo();
       Fifo::SyncGPUForRegisterAccess();
       return fifo.SafeCPReadPointer.load(std::memory_order_relaxed) >> 16;
     });
-    fifo_read_hi_w = MMIO::ComplexWrite<u16>([WMASK_HI_RESTRICT](Core::System&, u32, u16 val) {
+    fifo_read_hi_w = MMIO::ComplexWrite<u16>([WMASK_HI_RESTRICT](Core::System& sys, u32, u16 val) {
+      auto& fifo = sys.GetCommandProcessorFifo();
       Fifo::SyncGPUForRegisterAccess();
       WriteHigh(fifo.CPReadPointer, val & WMASK_HI_RESTRICT);
       fifo.SafeCPReadPointer.store(fifo.CPReadPointer.load(std::memory_order_relaxed),
@@ -353,11 +364,13 @@ void RegisterMMIO(MMIO::Mapping* mmio, u32 base)
   }
   else
   {
-    fifo_read_hi_r = MMIO::ComplexRead<u16>([](Core::System&, u32) {
+    fifo_read_hi_r = MMIO::ComplexRead<u16>([](Core::System& system, u32) {
+      auto& fifo = system.GetCommandProcessorFifo();
       Fifo::SyncGPUForRegisterAccess();
       return fifo.CPReadPointer.load(std::memory_order_relaxed) >> 16;
     });
-    fifo_read_hi_w = MMIO::ComplexWrite<u16>([WMASK_HI_RESTRICT](Core::System&, u32, u16 val) {
+    fifo_read_hi_w = MMIO::ComplexWrite<u16>([WMASK_HI_RESTRICT](Core::System& sys, u32, u16 val) {
+      auto& fifo = sys.GetCommandProcessorFifo();
       Fifo::SyncGPUForRegisterAccess();
       WriteHigh(fifo.CPReadPointer, val & WMASK_HI_RESTRICT);
     });
@@ -367,6 +380,8 @@ void RegisterMMIO(MMIO::Mapping* mmio, u32 base)
 
 void GatherPipeBursted()
 {
+  auto& fifo = Core::System::GetInstance().GetCommandProcessorFifo();
+
   SetCPStatusFromCPU();
 
   // if we aren't linked, we don't care about gather pipe data
@@ -467,6 +482,8 @@ bool IsInterruptWaiting()
 
 void SetCPStatusFromGPU()
 {
+  auto& fifo = Core::System::GetInstance().GetCommandProcessorFifo();
+
   // breakpoint
   const bool breakpoint = fifo.bFF_Breakpoint.load(std::memory_order_relaxed);
   if (fifo.bFF_BPEnable.load(std::memory_order_relaxed) != 0)
@@ -539,6 +556,8 @@ void SetCPStatusFromGPU()
 
 void SetCPStatusFromCPU()
 {
+  auto& fifo = Core::System::GetInstance().GetCommandProcessorFifo();
+
   // overflow & underflow check
   fifo.bFF_HiWatermark.store(
       (fifo.CPReadWriteDistance.load(std::memory_order_relaxed) > fifo.CPHiWatermark),
@@ -577,6 +596,8 @@ void SetCPStatusFromCPU()
 
 void SetCpStatusRegister()
 {
+  auto& fifo = Core::System::GetInstance().GetCommandProcessorFifo();
+
   // Here always there is one fifo attached to the GPU
   m_CPStatusReg.Breakpoint = fifo.bFF_Breakpoint.load(std::memory_order_relaxed);
   m_CPStatusReg.ReadIdle = !fifo.CPReadWriteDistance.load(std::memory_order_relaxed) ||
@@ -598,6 +619,8 @@ void SetCpStatusRegister()
 
 void SetCpControlRegister()
 {
+  auto& fifo = Core::System::GetInstance().GetCommandProcessorFifo();
+
   fifo.bFF_BPInt.store(m_CPCtrlReg.BPInt, std::memory_order_relaxed);
   fifo.bFF_BPEnable.store(m_CPCtrlReg.BPEnable, std::memory_order_relaxed);
   fifo.bFF_HiWatermarkInt.store(m_CPCtrlReg.FifoOverflowIntEnable, std::memory_order_relaxed);
@@ -631,6 +654,8 @@ void SetCpClearRegister()
 
 void HandleUnknownOpcode(u8 cmd_byte, const u8* buffer, bool preprocess)
 {
+  auto& fifo = Core::System::GetInstance().GetCommandProcessorFifo();
+
   // Datel software uses 0x01 during startup, and Mario Party 5's Wiggler capsule accidentally uses
   // 0x01-0x03 due to sending 4 more vertices than intended (see https://dolp.in/i8104).
   // Prince of Persia: Rival Swords sends 0x3f if the home menu is opened during the intro cutscene
