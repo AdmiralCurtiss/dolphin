@@ -15,6 +15,23 @@ class Mapping;
 
 namespace CommandProcessor
 {
+class CommandProcessorState
+{
+public:
+  CommandProcessorState();
+  CommandProcessorState(const CommandProcessorState&) = delete;
+  CommandProcessorState(CommandProcessorState&&) = delete;
+  CommandProcessorState& operator=(const CommandProcessorState&) = delete;
+  CommandProcessorState& operator=(CommandProcessorState&&) = delete;
+  ~CommandProcessorState();
+
+  struct Data;
+  Data& GetData() { return *m_data; }
+
+private:
+  std::unique_ptr<Data> m_data;
+};
+
 struct SCPFifoStruct
 {
   // fifo registers

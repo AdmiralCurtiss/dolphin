@@ -29,6 +29,7 @@ struct System::Impl
 
   AudioInterface::AudioInterfaceState m_audio_interface_state;
   CoreTiming::CoreTimingManager m_core_timing;
+  CommandProcessor::CommandProcessorState m_command_processor_state;
   CommandProcessor::SCPFifoStruct m_command_processor_fifo;
   DSP::DSPState m_dsp_state;
   DVDInterface::DVDInterfaceState m_dvd_interface_state;
@@ -91,6 +92,11 @@ AudioInterface::AudioInterfaceState& System::GetAudioInterfaceState() const
 CoreTiming::CoreTimingManager& System::GetCoreTiming() const
 {
   return m_impl->m_core_timing;
+}
+
+CommandProcessor::CommandProcessorState& System::GetCommandProcessorState() const
+{
+  return m_impl->m_command_processor_state;
 }
 
 CommandProcessor::SCPFifoStruct& System::GetCommandProcessorFifo() const
