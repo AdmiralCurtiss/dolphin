@@ -50,14 +50,14 @@ CommandProcessorState::CommandProcessorState() : m_data(std::make_unique<Data>()
 
 CommandProcessorState::~CommandProcessorState() = default;
 
-static bool IsOnThread()
+static bool IsOnThread(Core::System& system)
 {
-  return Core::System::GetInstance().IsDualCoreMode();
+  return system.IsDualCoreMode();
 }
 
 static void UpdateInterrupts_Wrapper(Core::System& system, u64 userdata, s64 cyclesLate)
 {
-  UpdateInterrupts(userdata);
+  UpdateInterrupts(system, userdata);
 }
 
 void SCPFifoStruct::Init()
@@ -261,7 +261,7 @@ void RegisterMMIO(MMIO::Mapping* mmio, u32 base)
   mmio->Register(base | STATUS_REGISTER, MMIO::ComplexRead<u16>([](Core::System& system, u32) {
                    auto& state = system.GetCommandProcessorState().GetData();
                    Fifo::SyncGPUForRegisterAccess();
-                   SetCpStatusRegister();
+                   SetCpStatusRegister(system);
                    return state.cp_status_reg.Hex;
                  }),
                  MMIO::InvalidWrite<u16>());
@@ -271,7 +271,7 @@ void RegisterMMIO(MMIO::Mapping* mmio, u32 base)
                    auto& state = system.GetCommandProcessorState().GetData();
                    UCPCtrlReg tmp(val);
                    state.cp_ctrl_reg.Hex = tmp.Hex;
-                   SetCpControlRegister();
+                   SetCpControlRegister(system);
                    Fifo::RunGpu();
                  }));
 
@@ -280,14 +280,14 @@ void RegisterMMIO(MMIO::Mapping* mmio, u32 base)
                    auto& state = system.GetCommandProcessorState().GetData();
                    UCPClearReg tmp(val);
                    state.cp_clear_reg.Hex = tmp.Hex;
-                   SetCpClearRegister();
+                   SetCpClearRegister(system);
                    Fifo::RunGpu();
                  }));
 
   mmio->Register(base | PERF_SELECT, MMIO::InvalidRead<u16>(), MMIO::Nop<u16>());
 
   // Some MMIOs have different handlers for single core vs. dual core mode.
-  const bool is_on_thread = IsOnThread();
+  const bool is_on_thread = IsOnThread(system);
   MMIO::ReadHandlingMethod<u16>* fifo_rw_distance_lo_r;
   if (is_on_thread)
   {
@@ -394,18 +394,17 @@ void RegisterMMIO(MMIO::Mapping* mmio, u32 base)
   mmio->Register(base | FIFO_READ_POINTER_HI, fifo_read_hi_r, fifo_read_hi_w);
 }
 
-void GatherPipeBursted()
+void GatherPipeBursted(Core::System& system)
 {
-  auto& system = Core::System::GetInstance();
   auto& state = system.GetCommandProcessorState().GetData();
   auto& fifo = system.GetCommandProcessorFifo();
 
-  SetCPStatusFromCPU();
+  SetCPStatusFromCPU(system);
 
   // if we aren't linked, we don't care about gather pipe data
   if (!state.cp_ctrl_reg.GPLinkEnable)
   {
-    if (IsOnThread() && !Fifo::UseDeterministicGPUThread())
+    if (IsOnThread(system) && !Fifo::UseDeterministicGPUThread())
     {
       // In multibuffer mode is not allowed write in the same FIFO attached to the GPU.
       // Fix Pokemon XD in DC mode.
@@ -465,9 +464,9 @@ void GatherPipeBursted()
              "FIFOs linked but out of sync");
 }
 
-void UpdateInterrupts(u64 userdata)
+void UpdateInterrupts(Core::System& system, u64 userdata)
 {
-  auto& state = Core::System::GetInstance().GetCommandProcessorState().GetData();
+  auto& state = system.GetCommandProcessorState().GetData();
 
   if (userdata)
   {
@@ -486,25 +485,24 @@ void UpdateInterrupts(u64 userdata)
   Fifo::RunGpu();
 }
 
-void UpdateInterruptsFromVideoBackend(u64 userdata)
+void UpdateInterruptsFromVideoBackend(Core::System& system, u64 userdata)
 {
   if (!Fifo::UseDeterministicGPUThread())
   {
-    auto& state = Core::System::GetInstance().GetCommandProcessorState().GetData();
+    auto& state = system.GetCommandProcessorState().GetData();
     Core::System::GetInstance().GetCoreTiming().ScheduleEvent(
         0, state.event_type_update_interrupts, userdata, CoreTiming::FromThread::NON_CPU);
   }
 }
 
-bool IsInterruptWaiting()
+bool IsInterruptWaiting(Core::System& system)
 {
-  auto& state = Core::System::GetInstance().GetCommandProcessorState().GetData();
+  auto& state = system.GetCommandProcessorState().GetData();
   return state.interrupt_waiting.IsSet();
 }
 
-void SetCPStatusFromGPU()
+void SetCPStatusFromGPU(Core::System& system)
 {
-  auto& system = Core::System::GetInstance();
   auto& state = system.GetCommandProcessorState().GetData();
   auto& fifo = system.GetCommandProcessorFifo();
 
@@ -562,25 +560,24 @@ void SetCPStatusFromGPU()
   if (interrupt != state.interrupt_set.IsSet() && !state.interrupt_waiting.IsSet())
   {
     u64 userdata = interrupt ? 1 : 0;
-    if (IsOnThread())
+    if (IsOnThread(system))
     {
       if (!interrupt || bpInt || undfInt || ovfInt)
       {
         // Schedule the interrupt asynchronously
         state.interrupt_waiting.Set();
-        CommandProcessor::UpdateInterruptsFromVideoBackend(userdata);
+        CommandProcessor::UpdateInterruptsFromVideoBackend(system, userdata);
       }
     }
     else
     {
-      CommandProcessor::UpdateInterrupts(userdata);
+      CommandProcessor::UpdateInterrupts(system, userdata);
     }
   }
 }
 
-void SetCPStatusFromCPU()
+void SetCPStatusFromCPU(Core::System& system)
 {
-  auto& system = Core::System::GetInstance();
   auto& state = system.GetCommandProcessorState().GetData();
   auto& fifo = system.GetCommandProcessorFifo();
 
@@ -604,7 +601,7 @@ void SetCPStatusFromCPU()
   if (interrupt != state.interrupt_set.IsSet() && !state.interrupt_waiting.IsSet())
   {
     u64 userdata = interrupt ? 1 : 0;
-    if (IsOnThread())
+    if (IsOnThread(system))
     {
       if (!interrupt || bpInt || undfInt || ovfInt)
       {
@@ -615,14 +612,13 @@ void SetCPStatusFromCPU()
     }
     else
     {
-      CommandProcessor::UpdateInterrupts(userdata);
+      CommandProcessor::UpdateInterrupts(system, userdata);
     }
   }
 }
 
-void SetCpStatusRegister()
+void SetCpStatusRegister(Core::System& system)
 {
-  auto& system = Core::System::GetInstance();
   auto& state = system.GetCommandProcessorState().GetData();
   auto& fifo = system.GetCommandProcessorFifo();
 
@@ -646,9 +642,8 @@ void SetCpStatusRegister()
       state.cp_status_reg.UnderflowLoWatermark ? "ON" : "OFF");
 }
 
-void SetCpControlRegister()
+void SetCpControlRegister(Core::System& system)
 {
-  auto& system = Core::System::GetInstance();
   auto& state = system.GetCommandProcessorState().GetData();
   auto& fifo = system.GetCommandProcessorFifo();
 
@@ -680,7 +675,7 @@ void SetCpControlRegister()
 
 // NOTE: We intentionally don't emulate this function at the moment.
 // We don't emulate proper GP timing anyway at the moment, so it would just slow down emulation.
-void SetCpClearRegister()
+void SetCpClearRegister(Core::System& system)
 {
 }
 

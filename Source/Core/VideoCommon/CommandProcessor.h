@@ -12,6 +12,10 @@ namespace MMIO
 {
 class Mapping;
 }
+namespace Core
+{
+class System;
+}
 
 namespace CommandProcessor
 {
@@ -169,17 +173,17 @@ void DoState(PointerWrap& p);
 
 void RegisterMMIO(MMIO::Mapping* mmio, u32 base);
 
-void SetCPStatusFromGPU();
-void SetCPStatusFromCPU();
-void GatherPipeBursted();
-void UpdateInterrupts(u64 userdata);
-void UpdateInterruptsFromVideoBackend(u64 userdata);
+void SetCPStatusFromGPU(Core::System& system);
+void SetCPStatusFromCPU(Core::System& system);
+void GatherPipeBursted(Core::System& system);
+void UpdateInterrupts(Core::System& system, u64 userdata);
+void UpdateInterruptsFromVideoBackend(Core::System& system, u64 userdata);
 
-bool IsInterruptWaiting();
+bool IsInterruptWaiting(Core::System& system);
 
-void SetCpClearRegister();
-void SetCpControlRegister();
-void SetCpStatusRegister();
+void SetCpClearRegister(Core::System& system);
+void SetCpControlRegister(Core::System& system);
+void SetCpStatusRegister(Core::System& system);
 
 void HandleUnknownOpcode(u8 cmd_byte, const u8* buffer, bool preprocess);
 

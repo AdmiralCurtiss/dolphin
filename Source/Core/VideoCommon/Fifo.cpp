@@ -349,11 +349,12 @@ void RunGpuLoop()
         }
         else
         {
-          auto& fifo = Core::System::GetInstance().GetCommandProcessorFifo();
-          CommandProcessor::SetCPStatusFromGPU();
+          auto& system = Core::System::GetInstance();
+          auto& fifo = system.GetCommandProcessorFifo();
+          CommandProcessor::SetCPStatusFromGPU(system);
 
           // check if we are able to run this buffer
-          while (!CommandProcessor::IsInterruptWaiting() &&
+          while (!CommandProcessor::IsInterruptWaiting(system) &&
                  fifo.bFF_GPReadEnable.load(std::memory_order_relaxed) &&
                  fifo.CPReadWriteDistance.load(std::memory_order_relaxed) && !AtBreakpoint())
           {
@@ -389,7 +390,7 @@ void RunGpuLoop()
                                            std::memory_order_relaxed);
             }
 
-            CommandProcessor::SetCPStatusFromGPU();
+            CommandProcessor::SetCPStatusFromGPU(system);
 
             if (s_config_sync_gpu)
             {
@@ -473,7 +474,8 @@ void RunGpu()
 
 static int RunGpuOnCpu(int ticks)
 {
-  auto& fifo = Core::System::GetInstance().GetCommandProcessorFifo();
+  auto& system = Core::System::GetInstance();
+  auto& fifo = system.GetCommandProcessorFifo();
   bool reset_simd_state = false;
   int available_ticks = int(ticks * s_config_sync_gpu_overclock) + s_sync_ticks.load();
   while (fifo.bFF_GPReadEnable.load(std::memory_order_relaxed) &&
@@ -514,7 +516,7 @@ static int RunGpuOnCpu(int ticks)
     fifo.CPReadWriteDistance.fetch_sub(GPFifo::GATHER_PIPE_SIZE, std::memory_order_relaxed);
   }
 
-  CommandProcessor::SetCPStatusFromGPU();
+  CommandProcessor::SetCPStatusFromGPU(system);
 
   if (reset_simd_state)
   {
