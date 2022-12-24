@@ -117,10 +117,12 @@ bool Interpreter::HandleFunctionHooking(u32 address)
 
 int Interpreter::SingleStepInner()
 {
+  const GekkoOPInfo* opinfo = PPCTables::GetOpInfo(m_prev_inst);
+
   if (HandleFunctionHooking(PowerPC::ppcState.pc))
   {
     UpdatePC();
-    return PPCTables::GetOpInfo(m_prev_inst)->num_cycles;
+    return opinfo->num_cycles;
   }
 
   PowerPC::ppcState.npc = PowerPC::ppcState.pc + sizeof(UGeckoInstruction);
@@ -160,7 +162,7 @@ int Interpreter::SingleStepInner()
     else
     {
       // check if we have to generate a FPU unavailable exception or a program exception.
-      if (PPCTables::UsesFPU(m_prev_inst))
+      if ((opinfo->flags & FL_USE_FPU) != 0)
       {
         PowerPC::ppcState.Exceptions |= EXCEPTION_FPU_UNAVAILABLE;
         CheckExceptions();
@@ -183,7 +185,6 @@ int Interpreter::SingleStepInner()
 
   UpdatePC();
 
-  const GekkoOPInfo* opinfo = PPCTables::GetOpInfo(m_prev_inst);
   PowerPC::UpdatePerformanceMonitor(opinfo->num_cycles, (opinfo->flags & FL_LOADSTORE) != 0,
                                     (opinfo->flags & FL_USE_FPU) != 0, PowerPC::ppcState);
   return opinfo->num_cycles;
