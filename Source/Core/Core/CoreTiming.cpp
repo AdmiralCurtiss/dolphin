@@ -259,7 +259,10 @@ void CoreTimingManager::RemoveEvent(EventType* event_type)
 
 void CoreTimingManager::RemoveAllEvents(EventType* event_type)
 {
-  MoveEvents();
+  {
+    std::lock_guard lk(m_ts_write_lock);
+    MoveEvents();
+  }
   RemoveEvent(event_type);
 }
 
@@ -290,7 +293,10 @@ void CoreTimingManager::Advance()
 {
   auto& system = Core::System::GetInstance();
 
-  MoveEvents();
+  {
+    std::lock_guard lk(m_ts_write_lock);
+    MoveEvents();
+  }
 
   int cyclesExecuted = m_globals.slice_length - DowncountToCycles(PowerPC::ppcState.downcount);
   m_globals.global_timer += cyclesExecuted;
