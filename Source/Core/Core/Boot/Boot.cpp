@@ -488,7 +488,7 @@ bool CBoot::Load_BS2(Core::System& system, const std::string& boot_rom_filename)
   PowerPC::ppcState.spr[SPR_DBAT3L] = 0xfff00001;
   SetupBAT(/*is_wii*/ false);
 
-  PC = 0x81200150;
+  PowerPC::ppcState.pc = 0x81200150;
   return true;
 }
 
@@ -587,7 +587,7 @@ bool CBoot::BootUp(Core::System& system, std::unique_ptr<BootParameters> boot)
 
       SConfig::OnNewTitleLoad();
 
-      PC = executable.reader->GetEntryPoint();
+      PowerPC::ppcState.pc = executable.reader->GetEntryPoint();
 
       if (executable.reader->LoadSymbols())
       {
