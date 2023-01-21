@@ -66,6 +66,12 @@ bool SkylanderUSB::Attach()
 
 bool SkylanderUSB::AttachAndChangeInterface(const u8 interface)
 {
+  if (!Attach())
+    return false;
+
+  if (interface != m_active_interface)
+    return ChangeInterface(interface) == 0;
+
   return true;
 }
 
@@ -117,8 +123,10 @@ int SkylanderUSB::SubmitTransfer(std::unique_ptr<CtrlMessage> cmd)
     ERROR_LOG_FMT(IOS_USB, "Skylander command invalid");
     return IPC_EINVAL;
   }
-  std::array<u8, 64> result = {};
-  std::array<u8, 64> data = {};
+  // Data to be queued to be sent back via the Interrupt Transfer (if needed)
+  std::array<u8, 64> interrupt_response = {};
+  // Data to be sent back via the control transfer immediately
+  std::array<u8, 64> control_response = {};
   s32 expected_count = 0;
   u64 expected_time_us = 100;
   // Control transfers are instantaneous
@@ -150,11 +158,11 @@ int SkylanderUSB::SubmitTransfer(std::unique_ptr<CtrlMessage> cmd)
         // Wii U Wireless: 41 01 f4 00 41 00 ed 00 41 01 f4 00 41 00 eb 00 41 01 f3 00 41 00 ed 00
         if (cmd->length == 2)
         {
-          data = {buf[0], buf[1]};
-          result = {0x41, buf[1], 0xFF, 0x77, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                    0x00, 0x00,   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                    0x00, 0x00,   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
-          m_queries.push(result);
+          control_response = {buf[0], buf[1]};
+          interrupt_response = {0x41, buf[1], 0xFF, 0x77, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                0x00, 0x00,   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                0x00, 0x00,   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+          m_queries.push(interrupt_response);
           expected_count = 10;
           system.GetSkylanderPortal().Activate();
         }
@@ -176,7 +184,7 @@ int SkylanderUSB::SubmitTransfer(std::unique_ptr<CtrlMessage> cmd)
         if (cmd->length == 4)
         {
           system.GetSkylanderPortal().SetLEDs(0x01, buf[1], buf[2], buf[3]);
-          data = {0x43, buf[1], buf[2], buf[3]};
+          control_response = {0x43, buf[1], buf[2], buf[3]};
           expected_count = 12;
         }
         break;
@@ -197,14 +205,13 @@ int SkylanderUSB::SubmitTransfer(std::unique_ptr<CtrlMessage> cmd)
         // are 0x00, 0x01 and 0x07. Custom commands show that the higher this value the longer the
         // duration.
 
-        // Empty J response is send after the fade is completed. Immeditately sending it is fine
-        // as long as we don't show the fade happening
+        // Empty J response is sent after the fade is completed.
         if (cmd->length == 7)
         {
-          data = {buf[0], buf[1], buf[2], buf[3], buf[4], buf[5], buf[6]};
+          control_response = {buf[0], buf[1], buf[2], buf[3], buf[4], buf[5], buf[6]};
           expected_count = 15;
-          result = {buf[0]};
-          m_queries.push(result);
+          interrupt_response = {buf[0]};
+          m_queries.push(interrupt_response);
           system.GetSkylanderPortal().SetLEDs(buf[1], buf[2], buf[3], buf[4]);
         }
         break;
@@ -224,7 +231,7 @@ int SkylanderUSB::SubmitTransfer(std::unique_ptr<CtrlMessage> cmd)
         // increasing or decreasing the values results in a brighter or dimmer light
         if (cmd->length == 5)
         {
-          data = {buf[0], buf[1], buf[2], buf[3], buf[4]};
+          control_response = {buf[0], buf[1], buf[2], buf[3], buf[4]};
           expected_count = 13;
 
           u8 side = buf[1];
@@ -242,10 +249,10 @@ int SkylanderUSB::SubmitTransfer(std::unique_ptr<CtrlMessage> cmd)
         // Respond with version obtained from Trap Team wired portal
         if (cmd->length == 2)
         {
-          data = {buf[0], buf[1]};
+          control_response = {buf[0], buf[1]};
           expected_count = 10;
-          result = {buf[0], buf[1], 0x00, 0x19};
-          m_queries.push(result);
+          interrupt_response = {buf[0], buf[1], 0x00, 0x19};
+          m_queries.push(interrupt_response);
         }
         break;
       }
@@ -267,14 +274,13 @@ int SkylanderUSB::SubmitTransfer(std::unique_ptr<CtrlMessage> cmd)
         // character indexes, these may not be sequential.
       case 'Q':
       {
-        // Queries a block
         if (cmd->length == 3)
         {
           const u8 sky_num = buf[1] & 0xF;
           const u8 block = buf[2];
-          system.GetSkylanderPortal().QueryBlock(sky_num, block, result.data());
-          m_queries.push(result);
-          data = {buf[0], buf[1], buf[2]};
+          system.GetSkylanderPortal().QueryBlock(sky_num, block, interrupt_response.data());
+          m_queries.push(interrupt_response);
+          control_response = {buf[0], buf[1], buf[2]};
           expected_count = 11;
         }
         break;
@@ -291,11 +297,11 @@ int SkylanderUSB::SubmitTransfer(std::unique_ptr<CtrlMessage> cmd)
         // type.
         if (cmd->length == 2)
         {
-          data = {0x52, 0x00};
-          result = {0x52, 0x02, 0x1b, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
-          m_queries.push(result);
+          control_response = {0x52, 0x00};
+          interrupt_response = {0x52, 0x02, 0x1b, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+          m_queries.push(interrupt_response);
           expected_count = 10;
         }
         break;
@@ -333,7 +339,8 @@ int SkylanderUSB::SubmitTransfer(std::unique_ptr<CtrlMessage> cmd)
       {
         if (cmd->length == 1)
         {
-          data = {buf[0]};
+          // The Status interrupt responses are automatically handled via the GetStatus method
+          control_response = {buf[0]};
           expected_count = 9;
         }
         break;
@@ -342,7 +349,7 @@ int SkylanderUSB::SubmitTransfer(std::unique_ptr<CtrlMessage> cmd)
       {
         if (cmd->length == 4)
         {
-          data = {buf[0], buf[1], buf[2], buf[3]};
+          control_response = {buf[0], buf[1], buf[2], buf[3]};
           expected_count = 12;
         }
         break;
@@ -372,11 +379,12 @@ int SkylanderUSB::SubmitTransfer(std::unique_ptr<CtrlMessage> cmd)
         {
           const u8 sky_num = buf[1] & 0xF;
           const u8 block = buf[2];
-          system.GetSkylanderPortal().WriteBlock(sky_num, block, &buf[3], result.data());
-          m_queries.push(result);
-          data = {buf[0],  buf[1],  buf[2],  buf[3],  buf[4],  buf[5],  buf[6],
-                  buf[7],  buf[8],  buf[9],  buf[10], buf[11], buf[12], buf[13],
-                  buf[14], buf[15], buf[16], buf[17], buf[18]};
+          system.GetSkylanderPortal().WriteBlock(sky_num, block, &buf[3],
+                                                 interrupt_response.data());
+          m_queries.push(interrupt_response);
+          control_response = {buf[0],  buf[1],  buf[2],  buf[3],  buf[4],  buf[5],  buf[6],
+                              buf[7],  buf[8],  buf[9],  buf[10], buf[11], buf[12], buf[13],
+                              buf[14], buf[15], buf[16], buf[17], buf[18]};
           expected_count = 27;
         }
         break;
@@ -399,7 +407,7 @@ int SkylanderUSB::SubmitTransfer(std::unique_ptr<CtrlMessage> cmd)
   }
   if (expected_count == 0)
     return IPC_EINVAL;
-  ScheduleTransfer(std::move(cmd), data, expected_count, expected_time_us);
+  ScheduleTransfer(std::move(cmd), control_response, expected_count, expected_time_us);
   return 0;
 }
 
@@ -427,26 +435,26 @@ int SkylanderUSB::SubmitTransfer(std::unique_ptr<IntrMessage> cmd)
     ERROR_LOG_FMT(IOS_USB, "Skylander command invalid");
     return IPC_EINVAL;
   }
-  std::array<u8, 64> result = {};
+  std::array<u8, 64> interrupt_response = {};
   s32 expected_count;
   u64 expected_time_us;
   // Audio requests are 64 bytes long, are the only Interrupt requests longer than 32 bytes,
   // echo the request as the response and respond after 1ms
   if (cmd->length > 32 && cmd->length <= 64)
   {
-    std::array<u8, 64> audio_result = {};
-    u8* audio_buf = audio_result.data();
+    std::array<u8, 64> audio_interrupt_response = {};
+    u8* audio_buf = audio_interrupt_response.data();
     memcpy(audio_buf, buf, cmd->length);
     expected_time_us = 1000;
     expected_count = cmd->length;
-    ScheduleTransfer(std::move(cmd), audio_result, expected_count, expected_time_us);
+    ScheduleTransfer(std::move(cmd), audio_interrupt_response, expected_count, expected_time_us);
     return 0;
   }
   // If some data was requested from the Control Message, then the Interrupt message needs to
   // respond with that data. Check if the queries queue is empty
   if (!m_queries.empty())
   {
-    result = m_queries.front();
+    interrupt_response = m_queries.front();
     m_queries.pop();
     // This needs to happen after ~22 milliseconds
     expected_time_us = 22000;
@@ -454,11 +462,11 @@ int SkylanderUSB::SubmitTransfer(std::unique_ptr<IntrMessage> cmd)
   // If there is no relevant data to respond with, respond with the currentstatus of the Portal
   else
   {
-    result = system.GetSkylanderPortal().GetStatus();
+    interrupt_response = system.GetSkylanderPortal().GetStatus();
     expected_time_us = 2000;
   }
   expected_count = 32;
-  ScheduleTransfer(std::move(cmd), result, expected_count, expected_time_us);
+  ScheduleTransfer(std::move(cmd), interrupt_response, expected_count, expected_time_us);
   return 0;
 }
 
@@ -616,18 +624,21 @@ std::array<u8, 64> SkylanderPortal::GetStatus()
     status |= s.status;
   }
 
-  std::array<u8, 64> result = {0x53,   0x00, 0x00, 0x00, 0x00, m_interrupt_counter++,
-                               active, 0x00, 0x00, 0x00, 0x00, 0x00,
-                               0x00,   0x00, 0x00, 0x00, 0x00, 0x00,
-                               0x00,   0x00, 0x00, 0x00, 0x00, 0x00,
-                               0x00,   0x00, 0x00, 0x00, 0x00, 0x00,
-                               0x00,   0x00};
-  memcpy(&result[1], &status, sizeof(status));
-  return result;
+  std::array<u8, 64> interrupt_response = {0x53,   0x00, 0x00, 0x00, 0x00, m_interrupt_counter++,
+                                           active, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                           0x00,   0x00, 0x00, 0x00, 0x00, 0x00,
+                                           0x00,   0x00, 0x00, 0x00, 0x00, 0x00,
+                                           0x00,   0x00, 0x00, 0x00, 0x00, 0x00,
+                                           0x00,   0x00};
+  memcpy(&interrupt_response[1], &status, sizeof(status));
+  return interrupt_response;
 }
 
 void SkylanderPortal::QueryBlock(u8 sky_num, u8 block, u8* reply_buf)
 {
+  if (!IsSkylanderNumberValid(sky_num) || !IsBlockNumberValid(block))
+    return;
+
   std::lock_guard lock(sky_mutex);
 
   const auto& skylander = skylanders[sky_num];
@@ -647,6 +658,9 @@ void SkylanderPortal::QueryBlock(u8 sky_num, u8 block, u8* reply_buf)
 
 void SkylanderPortal::WriteBlock(u8 sky_num, u8 block, const u8* to_write_buf, u8* reply_buf)
 {
+  if (!IsSkylanderNumberValid(sky_num) || !IsBlockNumberValid(block))
+    return;
+
   std::lock_guard lock(sky_mutex);
 
   auto& skylander = skylanders[sky_num];
@@ -738,6 +752,9 @@ bool SkylanderPortal::CreateSkylander(const std::string& file_path, u16 sky_id, 
 
 bool SkylanderPortal::RemoveSkylander(u8 sky_num)
 {
+  if (!IsSkylanderNumberValid(sky_num))
+    return false;
+
   DEBUG_LOG_FMT(IOS_USB, "Cleared Skylander from slot {}", sky_num);
   std::lock_guard lock(sky_mutex);
   auto& skylander = skylanders[sky_num];
@@ -799,6 +816,16 @@ u8 SkylanderPortal::LoadSkylander(u8* buf, File::IOFile in_file)
     skylander.last_id = sky_serial;
   }
   return found_slot;
+}
+
+bool SkylanderPortal::IsSkylanderNumberValid(u8 sky_num)
+{
+  return sky_num < MAX_SKYLANDERS;
+}
+
+bool SkylanderPortal::IsBlockNumberValid(u8 block)
+{
+  return block < 64;
 }
 
 }  // namespace IOS::HLE::USB
