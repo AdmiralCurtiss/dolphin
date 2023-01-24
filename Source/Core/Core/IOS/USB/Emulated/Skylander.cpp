@@ -115,285 +115,19 @@ int SkylanderUSB::SubmitTransfer(std::unique_ptr<CtrlMessage> cmd)
                 m_vid, m_pid, m_active_interface, cmd->request_type, cmd->request, cmd->value,
                 cmd->index, cmd->length);
 
-  auto& system = Core::System::GetInstance();
-  auto& memory = system.GetMemory();
-  u8* buf = memory.GetPointerForRange(cmd->data_address, cmd->length);
-  if ((cmd->length == 0 || buf == nullptr) && cmd->request == 0x09)
-  {
-    ERROR_LOG_FMT(IOS_USB, "Skylander command invalid");
+  if (cmd->request_type != 0x21)
     return IPC_EINVAL;
-  }
-  // Data to be queued to be sent back via the Interrupt Transfer (if needed)
-  std::array<u8, 64> interrupt_response = {};
+
   // Data to be sent back via the control transfer immediately
   std::array<u8, 64> control_response = {};
   s32 expected_count = 0;
   u64 expected_time_us = 100;
-  // Control transfers are instantaneous
-  u8 request_type = cmd->request_type;
-  if (request_type == 0x21)
+
+  // HID host to device type
+  if (cmd->request != 0x09)
   {
-    // HID host to device type
     switch (cmd->request)
     {
-    case 0x09:
-      switch (buf[0])
-      {
-      case 'A':
-      {
-        // Activation
-        // Command	{ 'A', (00 | 01), 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00,
-        // 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00 }
-        // Response	{ 'A', (00 | 01),
-        // ff, 77, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00,
-        // 00, 00, 00, 00, 00, 00, 00, 00 }
-        // The 2nd byte of the command is whether to activate (0x01) or deactivate (0x00) the
-        // portal. The response echos back the activation byte as the 2nd byte of the response. The
-        // 3rd and 4th bytes of the response appear to vary from wired to wireless. On wired
-        // portals, the bytes appear to always be ff 77. On wireless portals, during activation the
-        // 3rd byte appears to count down from ff (possibly a battery power indication) and during
-        // deactivation ed and eb responses have been observed. The 4th byte appears to always be 00
-        // for wireless portals.
-
-        // Wii U Wireless: 41 01 f4 00 41 00 ed 00 41 01 f4 00 41 00 eb 00 41 01 f3 00 41 00 ed 00
-        if (cmd->length == 2)
-        {
-          control_response = {buf[0], buf[1]};
-          interrupt_response = {0x41, buf[1], 0xFF, 0x77, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                                0x00, 0x00,   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                                0x00, 0x00,   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
-          m_queries.push(interrupt_response);
-          expected_count = 10;
-          system.GetSkylanderPortal().Activate();
-        }
-        break;
-      }
-      case 'C':
-      {
-        // Color
-        // Command	{ 'C', 12, 34, 56, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00,
-        // 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00 }
-        // Response	{ 'C', 12, 34, 56, 00, 00,
-        // 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00,
-        // 00, 00, 00, 00 }
-        // The 3 bytes {12, 34, 56} are RGB values.
-
-        // This command should set the color of the LED in the portal, however this appears
-        // deprecated in most of the recent portals. On portals that do not have LEDs, this command
-        // is silently ignored and do not require a response.
-        if (cmd->length == 4)
-        {
-          system.GetSkylanderPortal().SetLEDs(0x01, buf[1], buf[2], buf[3]);
-          control_response = {0x43, buf[1], buf[2], buf[3]};
-          expected_count = 12;
-        }
-        break;
-      }
-      case 'J':
-      {
-        // Sided color
-        // The 2nd byte is the side
-        // 0x00: right
-        // 0x01: left and right
-        // 0x02: left
-
-        // The 3rd, 4th and 5th bytes are red, green and blue
-
-        // The 6th byte is unknown. Observed values are 0x00, 0x0D and 0xF4
-
-        // The 7th byte is the fade duration. Exact value-time corrolation unknown. Observed values
-        // are 0x00, 0x01 and 0x07. Custom commands show that the higher this value the longer the
-        // duration.
-
-        // Empty J response is sent after the fade is completed.
-        if (cmd->length == 7)
-        {
-          control_response = {buf[0], buf[1], buf[2], buf[3], buf[4], buf[5], buf[6]};
-          expected_count = 15;
-          interrupt_response = {buf[0]};
-          m_queries.push(interrupt_response);
-          system.GetSkylanderPortal().SetLEDs(buf[1], buf[2], buf[3], buf[4]);
-        }
-        break;
-      }
-      case 'L':
-      {
-        // Light
-        // This command is used while playing audio through the portal
-
-        // The 2nd bytes is the position
-        // 0x00: right
-        // 0x01: trap led
-        // 0x02: left
-
-        // The 3rd, 4th and 5th bytes are red, green and blue
-        // the trap led is white-only
-        // increasing or decreasing the values results in a brighter or dimmer light
-        if (cmd->length == 5)
-        {
-          control_response = {buf[0], buf[1], buf[2], buf[3], buf[4]};
-          expected_count = 13;
-
-          u8 side = buf[1];
-          if (side == 0x02)
-          {
-            side = 0x04;
-          }
-          system.GetSkylanderPortal().SetLEDs(side, buf[2], buf[3], buf[4]);
-        }
-        break;
-      }
-      case 'M':
-      {
-        // Audio Firmware version
-        // Respond with version obtained from Trap Team wired portal
-        if (cmd->length == 2)
-        {
-          control_response = {buf[0], buf[1]};
-          expected_count = 10;
-          interrupt_response = {buf[0], buf[1], 0x00, 0x19};
-          m_queries.push(interrupt_response);
-        }
-        break;
-      }
-        // Query
-        // Command	{ 'Q', 10, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00,
-        // 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00 }
-        // Response	{ 'Q', 10, 00, 00, 00, 00,
-        // 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00,
-        // 00, 00, 00, 00 }
-        // In the command the 2nd byte indicates which Skylander to query data
-        // from. Index starts at 0x10 for the 1st Skylander (as reported in the Status command.) The
-        // 16th Skylander indexed would be 0x20. The 3rd byte indicate which block to read from.
-
-        // A response with the 2nd byte of 0x01 indicates an error in the read. Otherwise, the
-        // response indicates the Skylander's index in the 2nd byte, the block read in the 3rd byte,
-        // data (16 bytes) is contained in bytes 4-19.
-
-        // A Skylander has 64 blocks of data indexed from 0x00 to 0x3f. SwapForce characters have 2
-        // character indexes, these may not be sequential.
-      case 'Q':
-      {
-        if (cmd->length == 3)
-        {
-          const u8 sky_num = buf[1] & 0xF;
-          const u8 block = buf[2];
-          system.GetSkylanderPortal().QueryBlock(sky_num, block, interrupt_response.data());
-          m_queries.push(interrupt_response);
-          control_response = {buf[0], buf[1], buf[2]};
-          expected_count = 11;
-        }
-        break;
-      }
-      case 'R':
-      {
-        // Ready
-        // Command	{ 'R', 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00,
-        // 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00 }
-        // Response	{ 'R', 02, 0a, 03, 02, 00,
-        // 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00,
-        // 00, 00, 00, 00 }
-        // The 4 byte sequence after the R (0x52) is unknown, but appears consistent based on device
-        // type.
-        if (cmd->length == 2)
-        {
-          control_response = {0x52, 0x00};
-          interrupt_response = {0x52, 0x02, 0x1b, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
-          m_queries.push(interrupt_response);
-          expected_count = 10;
-        }
-        break;
-      }
-        // Status
-        // Command	{ 'S', 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00,
-        // 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00 }
-        // Response	{ 'S', 55, 00, 00, 55, 3e,
-        // (00|01), 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00,
-        // 00, 00, 00, 00, 00 }
-        // Status is the default command. If you open the HID device and
-        // activate the portal, you will get status outputs.
-
-        // The 4 bytes {55, 00, 00, 55} are the status of characters on the portal. The 4 bytes are
-        // treated as a 32-bit binary array. Each unique Skylander placed on a board is represented
-        // by 2 bits starting with the first Skylander in the least significant bit. This bit is
-        // present whenever the Skylandar is added or present on the portal. When the Skylander is
-        // added to the board, both bits are set in the next status message as a one-time signal.
-        // When a Skylander is removed from the board, only the most significant bit of the 2 bits
-        // is set.
-
-        // Different portals can track a different number of RFID tags. The Wii Wireless portal
-        // tracks 4, the Wired portal can track 8. The maximum number of unique Skylanders tracked
-        // at any time is 16, after which new Skylanders appear to cycle unused bits.
-
-        // Certain Skylanders, e.g. SwapForce Skylanders, are represented as 2 ID in the bit array.
-        // This may be due to the presence of 2 RFIDs, one for each half of the Skylander.
-
-        // The 6th byte {3e} is a counter and increments by one. It will roll over when reaching
-        // {ff}.
-
-        // The purpose of the (00\|01) byte at the 7th position appear to indicate if the portal has
-        // been activated: {01} when active and {00} when deactivated.
-      case 'S':
-      {
-        if (cmd->length == 1)
-        {
-          // The Status interrupt responses are automatically handled via the GetStatus method
-          control_response = {buf[0]};
-          expected_count = 9;
-        }
-        break;
-      }
-      case 'V':
-      {
-        if (cmd->length == 4)
-        {
-          control_response = {buf[0], buf[1], buf[2], buf[3]};
-          expected_count = 12;
-        }
-        break;
-      }
-        // Write
-        // Command	{ 'W', 10, 00, 01, 02, 03, 04, 05, 06, 07, 08, 09, 0a, 0b, 0c, 0d, 0e, 0f, 00,
-        // 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00 }
-        // Response	{ 'W', 00, 00, 00, 00, 00,
-        // 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00,
-        // 00, 00, 00, 00 }
-        // In the command the 2nd byte indicates which Skylander to query data from. Index starts at
-        // 0x10 for the 1st Skylander (as reported in the Status command.) The 16th Skylander
-        // indexed would be 0x20.
-
-        // 3rd byte is the block to write to.
-
-        // Bytes 4 - 19 ({ 01, 02, 03, 04, 05, 06, 07, 08, 09, 0a, 0b, 0c, 0d, 0e, 0f }) are the
-        // data to write.
-
-        // The response does not appear to return the id of the Skylander being written, the 2nd
-        // byte is 0x00; however, the 3rd byte echos the block that was written (0x00 in example
-        // above.)
-
-      case 'W':
-      {
-        if (cmd->length == 19)
-        {
-          const u8 sky_num = buf[1] & 0xF;
-          const u8 block = buf[2];
-          system.GetSkylanderPortal().WriteBlock(sky_num, block, &buf[3],
-                                                 interrupt_response.data());
-          m_queries.push(interrupt_response);
-          control_response = {buf[0],  buf[1],  buf[2],  buf[3],  buf[4],  buf[5],  buf[6],
-                              buf[7],  buf[8],  buf[9],  buf[10], buf[11], buf[12], buf[13],
-                              buf[14], buf[15], buf[16], buf[17], buf[18]};
-          expected_count = 27;
-        }
-        break;
-      }
-      default:
-        ERROR_LOG_FMT(IOS_USB, "Unhandled Skylander Portal Query: {}", buf[0]);
-        break;
-      }
-      break;
     case 0x0A:
       expected_count = 8;
       break;
@@ -405,8 +139,279 @@ int SkylanderUSB::SubmitTransfer(std::unique_ptr<CtrlMessage> cmd)
       break;
     }
   }
+  else
+  {
+    auto& system = Core::System::GetInstance();
+    auto& memory = system.GetMemory();
+    u8* buf = memory.GetPointerForRange(cmd->data_address, cmd->length);
+    if (cmd->length == 0 || buf == nullptr)
+    {
+      ERROR_LOG_FMT(IOS_USB, "Skylander command invalid");
+      return IPC_EINVAL;
+    }
+    // Data to be queued to be sent back via the Interrupt Transfer (if needed)
+    std::array<u8, 64> interrupt_response = {};
+
+    switch (buf[0])
+    {
+    case 'A':
+    {
+      // Activation
+      // Command	{ 'A', (00 | 01), 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00,
+      // 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00 }
+      // Response	{ 'A', (00 | 01),
+      // ff, 77, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00,
+      // 00, 00, 00, 00, 00, 00, 00, 00 }
+      // The 2nd byte of the command is whether to activate (0x01) or deactivate (0x00) the
+      // portal. The response echos back the activation byte as the 2nd byte of the response. The
+      // 3rd and 4th bytes of the response appear to vary from wired to wireless. On wired
+      // portals, the bytes appear to always be ff 77. On wireless portals, during activation the
+      // 3rd byte appears to count down from ff (possibly a battery power indication) and during
+      // deactivation ed and eb responses have been observed. The 4th byte appears to always be 00
+      // for wireless portals.
+
+      // Wii U Wireless: 41 01 f4 00 41 00 ed 00 41 01 f4 00 41 00 eb 00 41 01 f3 00 41 00 ed 00
+      if (cmd->length == 2)
+      {
+        control_response = {buf[0], buf[1]};
+        interrupt_response = {0x41, buf[1], 0xFF, 0x77, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                              0x00, 0x00,   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                              0x00, 0x00,   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+        m_queries.push(interrupt_response);
+        expected_count = 10;
+        system.GetSkylanderPortal().Activate();
+      }
+      break;
+    }
+    case 'C':
+    {
+      // Color
+      // Command	{ 'C', 12, 34, 56, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00,
+      // 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00 }
+      // Response	{ 'C', 12, 34, 56, 00, 00,
+      // 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00,
+      // 00, 00, 00, 00 }
+      // The 3 bytes {12, 34, 56} are RGB values.
+
+      // This command should set the color of the LED in the portal, however this appears
+      // deprecated in most of the recent portals. On portals that do not have LEDs, this command
+      // is silently ignored and do not require a response.
+      if (cmd->length == 4)
+      {
+        system.GetSkylanderPortal().SetLEDs(0x01, buf[1], buf[2], buf[3]);
+        control_response = {0x43, buf[1], buf[2], buf[3]};
+        expected_count = 12;
+      }
+      break;
+    }
+    case 'J':
+    {
+      // Sided color
+      // The 2nd byte is the side
+      // 0x00: right
+      // 0x01: left and right
+      // 0x02: left
+
+      // The 3rd, 4th and 5th bytes are red, green and blue
+
+      // The 6th byte is unknown. Observed values are 0x00, 0x0D and 0xF4
+
+      // The 7th byte is the fade duration. Exact value-time corrolation unknown. Observed values
+      // are 0x00, 0x01 and 0x07. Custom commands show that the higher this value the longer the
+      // duration.
+
+      // Empty J response is sent after the fade is completed.
+      if (cmd->length == 7)
+      {
+        control_response = {buf[0], buf[1], buf[2], buf[3], buf[4], buf[5], buf[6]};
+        expected_count = 15;
+        interrupt_response = {buf[0]};
+        m_queries.push(interrupt_response);
+        system.GetSkylanderPortal().SetLEDs(buf[1], buf[2], buf[3], buf[4]);
+      }
+      break;
+    }
+    case 'L':
+    {
+      // Light
+      // This command is used while playing audio through the portal
+
+      // The 2nd bytes is the position
+      // 0x00: right
+      // 0x01: trap led
+      // 0x02: left
+
+      // The 3rd, 4th and 5th bytes are red, green and blue
+      // the trap led is white-only
+      // increasing or decreasing the values results in a brighter or dimmer light
+      if (cmd->length == 5)
+      {
+        control_response = {buf[0], buf[1], buf[2], buf[3], buf[4]};
+        expected_count = 13;
+
+        u8 side = buf[1];
+        if (side == 0x02)
+        {
+          side = 0x04;
+        }
+        system.GetSkylanderPortal().SetLEDs(side, buf[2], buf[3], buf[4]);
+      }
+      break;
+    }
+    case 'M':
+    {
+      // Audio Firmware version
+      // Respond with version obtained from Trap Team wired portal
+      if (cmd->length == 2)
+      {
+        control_response = {buf[0], buf[1]};
+        expected_count = 10;
+        interrupt_response = {buf[0], buf[1], 0x00, 0x19};
+        m_queries.push(interrupt_response);
+      }
+      break;
+    }
+      // Query
+      // Command	{ 'Q', 10, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00,
+      // 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00 }
+      // Response	{ 'Q', 10, 00, 00, 00, 00,
+      // 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00,
+      // 00, 00, 00, 00 }
+      // In the command the 2nd byte indicates which Skylander to query data
+      // from. Index starts at 0x10 for the 1st Skylander (as reported in the Status command.) The
+      // 16th Skylander indexed would be 0x20. The 3rd byte indicate which block to read from.
+
+      // A response with the 2nd byte of 0x01 indicates an error in the read. Otherwise, the
+      // response indicates the Skylander's index in the 2nd byte, the block read in the 3rd byte,
+      // data (16 bytes) is contained in bytes 4-19.
+
+      // A Skylander has 64 blocks of data indexed from 0x00 to 0x3f. SwapForce characters have 2
+      // character indexes, these may not be sequential.
+    case 'Q':
+    {
+      if (cmd->length == 3)
+      {
+        const u8 sky_num = buf[1] & 0xF;
+        const u8 block = buf[2];
+        system.GetSkylanderPortal().QueryBlock(sky_num, block, interrupt_response.data());
+        m_queries.push(interrupt_response);
+        control_response = {buf[0], buf[1], buf[2]};
+        expected_count = 11;
+      }
+      break;
+    }
+    case 'R':
+    {
+      // Ready
+      // Command	{ 'R', 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00,
+      // 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00 }
+      // Response	{ 'R', 02, 0a, 03, 02, 00,
+      // 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00,
+      // 00, 00, 00, 00 }
+      // The 4 byte sequence after the R (0x52) is unknown, but appears consistent based on device
+      // type.
+      if (cmd->length == 2)
+      {
+        control_response = {0x52, 0x00};
+        interrupt_response = {0x52, 0x02, 0x1b, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                              0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                              0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+        m_queries.push(interrupt_response);
+        expected_count = 10;
+      }
+      break;
+    }
+      // Status
+      // Command	{ 'S', 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00,
+      // 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00 }
+      // Response	{ 'S', 55, 00, 00, 55, 3e,
+      // (00|01), 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00,
+      // 00, 00, 00, 00, 00 }
+      // Status is the default command. If you open the HID device and
+      // activate the portal, you will get status outputs.
+
+      // The 4 bytes {55, 00, 00, 55} are the status of characters on the portal. The 4 bytes are
+      // treated as a 32-bit binary array. Each unique Skylander placed on a board is represented
+      // by 2 bits starting with the first Skylander in the least significant bit. This bit is
+      // present whenever the Skylandar is added or present on the portal. When the Skylander is
+      // added to the board, both bits are set in the next status message as a one-time signal.
+      // When a Skylander is removed from the board, only the most significant bit of the 2 bits
+      // is set.
+
+      // Different portals can track a different number of RFID tags. The Wii Wireless portal
+      // tracks 4, the Wired portal can track 8. The maximum number of unique Skylanders tracked
+      // at any time is 16, after which new Skylanders appear to cycle unused bits.
+
+      // Certain Skylanders, e.g. SwapForce Skylanders, are represented as 2 ID in the bit array.
+      // This may be due to the presence of 2 RFIDs, one for each half of the Skylander.
+
+      // The 6th byte {3e} is a counter and increments by one. It will roll over when reaching
+      // {ff}.
+
+      // The purpose of the (00\|01) byte at the 7th position appear to indicate if the portal has
+      // been activated: {01} when active and {00} when deactivated.
+    case 'S':
+    {
+      if (cmd->length == 1)
+      {
+        // The Status interrupt responses are automatically handled via the GetStatus method
+        control_response = {buf[0]};
+        expected_count = 9;
+      }
+      break;
+    }
+    case 'V':
+    {
+      if (cmd->length == 4)
+      {
+        control_response = {buf[0], buf[1], buf[2], buf[3]};
+        expected_count = 12;
+      }
+      break;
+    }
+      // Write
+      // Command	{ 'W', 10, 00, 01, 02, 03, 04, 05, 06, 07, 08, 09, 0a, 0b, 0c, 0d, 0e, 0f, 00,
+      // 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00 }
+      // Response	{ 'W', 00, 00, 00, 00, 00,
+      // 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00,
+      // 00, 00, 00, 00 }
+      // In the command the 2nd byte indicates which Skylander to query data from. Index starts at
+      // 0x10 for the 1st Skylander (as reported in the Status command.) The 16th Skylander
+      // indexed would be 0x20.
+
+      // 3rd byte is the block to write to.
+
+      // Bytes 4 - 19 ({ 01, 02, 03, 04, 05, 06, 07, 08, 09, 0a, 0b, 0c, 0d, 0e, 0f }) are the
+      // data to write.
+
+      // The response does not appear to return the id of the Skylander being written, the 2nd
+      // byte is 0x00; however, the 3rd byte echos the block that was written (0x00 in example
+      // above.)
+
+    case 'W':
+    {
+      if (cmd->length == 19)
+      {
+        const u8 sky_num = buf[1] & 0xF;
+        const u8 block = buf[2];
+        system.GetSkylanderPortal().WriteBlock(sky_num, block, &buf[3], interrupt_response.data());
+        m_queries.push(interrupt_response);
+        control_response = {buf[0],  buf[1],  buf[2],  buf[3],  buf[4],  buf[5],  buf[6],
+                            buf[7],  buf[8],  buf[9],  buf[10], buf[11], buf[12], buf[13],
+                            buf[14], buf[15], buf[16], buf[17], buf[18]};
+        expected_count = 27;
+      }
+      break;
+    }
+    default:
+      ERROR_LOG_FMT(IOS_USB, "Unhandled Skylander Portal Query: {}", buf[0]);
+      break;
+    }
+  }
+
   if (expected_count == 0)
     return IPC_EINVAL;
+
   ScheduleTransfer(std::move(cmd), control_response, expected_count, expected_time_us);
   return 0;
 }
