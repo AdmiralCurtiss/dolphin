@@ -13,6 +13,10 @@ endif()
 
 set(CMAKE_AUTOMOC ON)
 
+if (WIN32)
+  set(CMAKE_AUTORCC ON)
+endif()
+
 # For some reason the method in Qt6 documentation is not working (at least on ubuntu jammy)
 # When Qt5 and Qt6 are given in same NAMES entry, only Qt5 is ever found.
 find_package(QT NAMES Qt6 COMPONENTS Core Gui Widgets)
@@ -352,6 +356,12 @@ add_executable(dolphin-emu
   WiiUpdate.cpp
   WiiUpdate.h
 )
+
+if (WIN32)
+  target_sources(dolphin-emu PRIVATE
+    Styles/Dark/style.qrc
+  )
+endif()
 
 if (NOT WIN32)
   target_sources(dolphin-emu PRIVATE

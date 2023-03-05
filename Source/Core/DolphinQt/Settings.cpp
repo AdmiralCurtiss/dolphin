@@ -131,26 +131,8 @@ QString Settings::GetCurrentUserStyle() const
 // Calling this before the main window has been created breaks the style of some widgets.
 void Settings::SetCurrentUserStyle(QString stylesheet_name)
 {
-#ifdef _WIN32
-  // On the first boot of Dolphin, automatically select the dark theme
-  // if the Windows system has it enabled
-  if (stylesheet_name.isEmpty())
-  {
-    using namespace winrt::Windows::UI::ViewManagement;
-    const UISettings settings;
-    const auto& color = settings.GetColorValue(UIColorType::Foreground);
-
-    const bool is_system_dark = (((5 * color.G) + (2 * color.R) + color.B) > (8 * 128));
-    if (is_system_dark)
-    {
-      stylesheet_name = QStringLiteral("Dark");
-    }
-  }
-#endif
-
   QString stylesheet_contents;
 
-  // If we haven't found one, we continue with an empty (default) style
   if (!stylesheet_name.isEmpty())
   {
     const auto& stylesheet_path = File::GetStylesDir(stylesheet_name.toStdString());
@@ -169,6 +151,28 @@ void Settings::SetCurrentUserStyle(QString stylesheet_name)
         QResource::registerResource(resource_path);
     }
   }
+
+#ifdef _WIN32
+  if (stylesheet_contents.isEmpty())
+  {
+    // No theme selected or found. Usually we would just fallthrough and set an empty stylesheet
+    // which would select Qt's default theme, but unlike other OSes we don't automatically get a
+    // default dark theme on Windows when the user has selected dark mode in the Windows settings.
+    // So manually check if the user wants dark mode and, if yes, load our embedded dark theme.
+
+    using namespace winrt::Windows::UI::ViewManagement;
+    const UISettings settings;
+    const auto& color = settings.GetColorValue(UIColorType::Foreground);
+
+    const bool is_system_dark = (((5 * color.G) + (2 * color.R) + color.B) > (8 * 128));
+    if (is_system_dark)
+    {
+      QFile file(QStringLiteral(":/qdarkstyle/style.qss"));
+      if (file.open(QFile::ReadOnly))
+        stylesheet_contents = QString::fromUtf8(file.readAll().data());
+    }
+  }
+#endif
 
   // Define tooltips style if not already defined
   if (!stylesheet_contents.contains(QStringLiteral("QToolTip"), Qt::CaseSensitive))
