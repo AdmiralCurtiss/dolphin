@@ -110,7 +110,7 @@ static void Trace(const UGeckoInstruction& inst)
 bool Interpreter::HandleFunctionHooking(u32 address)
 {
   return HLE::ReplaceFunctionIfPossible(address, [](u32 hook_index, HLE::HookType type) {
-    HLEFunction(hook_index);
+    HLEFunction(*Interpreter::getInstance(), hook_index);
     return type != HLE::HookType::Start;
   });
 }
@@ -153,7 +153,7 @@ int Interpreter::SingleStepInner()
     }
     else if (PowerPC::ppcState.msr.FP)
     {
-      RunInterpreterOp(m_prev_inst);
+      RunInterpreterOp(*Interpreter::getInstance(), m_prev_inst);
       if ((PowerPC::ppcState.Exceptions & EXCEPTION_DSI) != 0)
       {
         CheckExceptions();
@@ -169,7 +169,7 @@ int Interpreter::SingleStepInner()
       }
       else
       {
-        RunInterpreterOp(m_prev_inst);
+        RunInterpreterOp(*Interpreter::getInstance(), m_prev_inst);
         if ((PowerPC::ppcState.Exceptions & EXCEPTION_DSI) != 0)
         {
           CheckExceptions();
@@ -211,7 +211,7 @@ void Interpreter::SingleStep()
   }
 }
 
-//#define SHOW_HISTORY
+// #define SHOW_HISTORY
 #ifdef SHOW_HISTORY
 static std::vector<u32> s_pc_vec;
 static std::vector<u32> s_pc_block_vec;
@@ -310,7 +310,7 @@ void Interpreter::Run()
   }
 }
 
-void Interpreter::unknown_instruction(UGeckoInstruction inst)
+void Interpreter::unknown_instruction(Interpreter& interpreter, UGeckoInstruction inst)
 {
   ASSERT(Core::IsCPUThread());
   auto& system = Core::System::GetInstance();
