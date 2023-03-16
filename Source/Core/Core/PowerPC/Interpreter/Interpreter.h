@@ -304,10 +304,12 @@ private:
   static void Helper_FloatCompareUnordered(UGeckoInstruction inst, double a, double b);
 
   void UpdatePC();
+  bool IsInvalidPairedSingleExecution(UGeckoInstruction inst);
 
   void Trace(const UGeckoInstruction& inst);
 
   Core::System& m_system;
+  PowerPC::PowerPCState& m_ppc_state;
 
   UGeckoInstruction m_prev_inst{};
   u32 m_last_pc = 0;
