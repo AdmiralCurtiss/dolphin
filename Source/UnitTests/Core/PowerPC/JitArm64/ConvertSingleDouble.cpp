@@ -9,6 +9,7 @@
 #include "Common/FPURoundMode.h"
 #include "Core/PowerPC/Interpreter/Interpreter_FPUtils.h"
 #include "Core/PowerPC/JitArm64/Jit.h"
+#include "Core/System.h"
 
 #include "../TestValues.h"
 
@@ -30,7 +31,8 @@ struct Pair
 class TestConversion : private JitArm64
 {
 public:
-  TestConversion()
+  TestConversion(Core::System& system, PowerPC::PowerPCState& ppc_state)
+      : JitArm64(system, ppc_state)
   {
     const Common::ScopedJITPageWriteAndNoExecute enable_jit_page_writes;
 
@@ -119,7 +121,7 @@ private:
 
 TEST(JitArm64, ConvertDoubleToSingle)
 {
-  TestConversion test;
+  TestConversion test(Core::System::GetInstance(), Core::System::GetInstance().GetPPCState());
 
   for (const u64 input : double_test_values)
   {
@@ -154,7 +156,7 @@ TEST(JitArm64, ConvertDoubleToSingle)
 
 TEST(JitArm64, ConvertSingleToDouble)
 {
-  TestConversion test;
+  TestConversion test(Core::System::GetInstance(), Core::System::GetInstance().GetPPCState());
 
   for (const u32 input : single_test_values)
   {

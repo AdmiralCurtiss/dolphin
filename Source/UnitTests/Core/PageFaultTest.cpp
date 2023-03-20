@@ -9,6 +9,7 @@
 #include "Core/MemTools.h"
 #include "Core/PowerPC/JitCommon/JitBase.h"
 #include "Core/PowerPC/JitInterface.h"
+#include "Core/System.h"
 
 // include order is important
 #include <gtest/gtest.h>  // NOLINT
@@ -25,6 +26,11 @@ enum
 class PageFaultFakeJit : public JitBase
 {
 public:
+  PageFaultFakeJit(Core::System& system, PowerPC::PowerPCState& ppc_state)
+      : JitBase(system, ppc_state)
+  {
+  }
+
   // CPUCoreBase methods
   void Init() override {}
   void Shutdown() override {}
@@ -72,7 +78,7 @@ TEST(PageFault, PageFault)
   EXPECT_NE(data, nullptr);
   Common::WriteProtectMemory(data, PAGE_GRAN, false);
 
-  PageFaultFakeJit pfjit;
+  PageFaultFakeJit pfjit(Core::System::GetInstance(), Core::System::GetInstance().GetPPCState());
   JitInterface::SetJit(&pfjit);
   pfjit.m_data = data;
 

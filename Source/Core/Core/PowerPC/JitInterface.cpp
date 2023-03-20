@@ -54,20 +54,23 @@ void DoState(PointerWrap& p)
 }
 CPUCoreBase* InitJitCore(PowerPC::CPUCore core)
 {
+  auto& system = Core::System::GetInstance();
+  auto& ppc_state = system.GetPPCState();
+
   switch (core)
   {
 #if _M_X86
   case PowerPC::CPUCore::JIT64:
-    g_jit = new Jit64();
+    g_jit = new Jit64(system, ppc_state);
     break;
 #endif
 #if _M_ARM_64
   case PowerPC::CPUCore::JITARM64:
-    g_jit = new JitArm64();
+    g_jit = new JitArm64(system, ppc_state);
     break;
 #endif
   case PowerPC::CPUCore::CachedInterpreter:
-    g_jit = new CachedInterpreter();
+    g_jit = new CachedInterpreter(system, ppc_state);
     break;
 
   default:

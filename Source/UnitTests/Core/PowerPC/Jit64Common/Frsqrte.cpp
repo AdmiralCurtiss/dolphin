@@ -11,6 +11,7 @@
 #include "Core/PowerPC/Jit64/Jit.h"
 #include "Core/PowerPC/Jit64Common/Jit64AsmCommon.h"
 #include "Core/PowerPC/Jit64Common/Jit64PowerPCState.h"
+#include "Core/System.h"
 
 #include "../TestValues.h"
 
@@ -22,7 +23,8 @@ namespace
 class TestCommonAsmRoutines : public CommonAsmRoutines
 {
 public:
-  TestCommonAsmRoutines() : CommonAsmRoutines(jit)
+  TestCommonAsmRoutines(Core::System& system, PowerPC::PowerPCState& ppc_state)
+      : CommonAsmRoutines(jit), jit(system, ppc_state)
   {
     using namespace Gen;
 
@@ -58,7 +60,8 @@ public:
 
 TEST(Jit64, Frsqrte)
 {
-  TestCommonAsmRoutines routines;
+  TestCommonAsmRoutines routines(Core::System::GetInstance(),
+                                 Core::System::GetInstance().GetPPCState());
 
   UReg_FPSCR fpscr;
 

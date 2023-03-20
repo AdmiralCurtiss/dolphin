@@ -9,6 +9,7 @@
 #include "Core/PowerPC/Interpreter/Interpreter_FPUtils.h"
 #include "Core/PowerPC/JitArm64/Jit.h"
 #include "Core/PowerPC/PowerPC.h"
+#include "Core/System.h"
 
 #include "../TestValues.h"
 
@@ -21,7 +22,7 @@ using namespace Arm64Gen;
 class TestFrsqrte : public JitArm64
 {
 public:
-  TestFrsqrte()
+  TestFrsqrte(Core::System& system, PowerPC::PowerPCState& ppc_state) : JitArm64(system, ppc_state)
   {
     const Common::ScopedJITPageWriteAndNoExecute enable_jit_page_writes;
 
@@ -50,7 +51,7 @@ public:
 
 TEST(JitArm64, Frsqrte)
 {
-  TestFrsqrte test;
+  TestFrsqrte test(Core::System::GetInstance(), Core::System::GetInstance().GetPPCState());
 
   for (const u64 ivalue : double_test_values)
   {
