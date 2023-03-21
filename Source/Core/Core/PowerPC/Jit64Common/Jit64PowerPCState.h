@@ -9,10 +9,7 @@
 
 // We offset by 0x80 because the range of one byte memory offsets is
 // -0x80..0x7f.
-#define PPCSTATE(x)                                                                                \
-  MDisp(RPPCSTATE, (int)((char*)&PowerPC::ppcState.x - (char*)&PowerPC::ppcState) - 0x80)
-// In case you want to disable the ppcstate register:
-// #define PPCSTATE(x) M(&PowerPC::ppcState.x)
+#define PPCSTATE(x) MDisp(RPPCSTATE, static_cast<int>(offsetof(PowerPC::PowerPCState, x)) - 0x80)
 #define PPCSTATE_LR PPCSTATE(spr[SPR_LR])
 #define PPCSTATE_CTR PPCSTATE(spr[SPR_CTR])
 #define PPCSTATE_SRR0 PPCSTATE(spr[SPR_SRR0])
