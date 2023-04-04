@@ -13,6 +13,7 @@
 #include <rcheevos/include/rc_runtime.h>
 
 #include "Common/Event.h"
+#include "Common/WorkQueueThread.h"
 
 class AchievementManager
 {
@@ -41,13 +42,13 @@ private:
 
   template <typename RcRequest, typename RcResponse>
   ResponseType Request(RcRequest rc_request, RcResponse* rc_response,
-                              const std::function<int(rc_api_request_t*, const RcRequest*)>& init_request,
-                              const std::function<int(RcResponse*, const char*)>& process_response);
+                       const std::function<int(rc_api_request_t*, const RcRequest*)>& init_request,
+                       const std::function<int(RcResponse*, const char*)>& process_response);
 
   rc_runtime_t m_runtime{};
   bool m_is_runtime_initialized = false;
   rc_api_login_response_t m_login_data{};
-  std::thread m_login_thread;
+  Common::WorkQueueThread<std::function<void()>> m_queue;
 };  // class AchievementManager
 
 #endif  // USE_RETRO_ACHIEVEMENTS

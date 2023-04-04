@@ -21,6 +21,7 @@ void AchievementManager::Init()
   {
     rc_runtime_init(&m_runtime);
     m_is_runtime_initialized = true;
+    m_queue.Reset("AchievementManagerQueue", [](const std::function<void()>& func) { func(); });
     LoginAsync("", [](ResponseType r_type) {});
   }
 }
@@ -32,11 +33,7 @@ AchievementManager::ResponseType AchievementManager::Login(const std::string& pa
 
 void AchievementManager::LoginAsync(const std::string& password, const LoginCallback& callback)
 {
-  if (m_login_thread.joinable())
-    m_login_thread.join();
-
-  m_login_thread =
-      std::thread([this, password, callback]() { callback(VerifyCredentials(password)); });
+  m_queue.EmplaceItem([this, password, callback] { callback(VerifyCredentials(password)); });
 }
 
 bool AchievementManager::IsLoggedIn() const
@@ -57,7 +54,7 @@ void AchievementManager::Shutdown()
   // DON'T log out - keep those credentials for next run.
   rc_api_destroy_login_response(&m_login_data);
   m_login_data.response.succeeded = 0;
-  m_login_thread.join();
+  m_queue.Shutdown();
 }
 
 AchievementManager::ResponseType AchievementManager::VerifyCredentials(const std::string& password)
@@ -83,10 +80,10 @@ AchievementManager::ResponseType AchievementManager::VerifyCredentials(const std
 //   Use the data in the rc_api_X_response_t struct as needed
 //   Call rc_api_destroy_X_response when finished with the response struct to free memory
 template <typename RcRequest, typename RcResponse>
-AchievementManager::ResponseType
-AchievementManager::Request(RcRequest rc_request, RcResponse* rc_response,
-                            const std::function<int(rc_api_request_t*, const RcRequest*)>& init_request,
-                            const std::function<int(RcResponse*, const char*)>& process_response)
+AchievementManager::ResponseType AchievementManager::Request(
+    RcRequest rc_request, RcResponse* rc_response,
+    const std::function<int(rc_api_request_t*, const RcRequest*)>& init_request,
+    const std::function<int(RcResponse*, const char*)>& process_response)
 {
   rc_api_request_t api_request;
   Common::HttpRequest http_request;
