@@ -1,4 +1,4 @@
-// Copyright 2022 Dolphin Emulator Project
+// Copyright 2023 Dolphin Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #pragma once
@@ -14,7 +14,8 @@
 #include <QWidget>
 
 #include "Core/Core.h"
-#include "Core/IOS/USB/Emulated/Skylander.h"
+#include "Core/IOS/USB/Emulated/Skylanders/Skylander.h"
+#include "Core/IOS/USB/Emulated/Skylanders/SkylanderFigure.h"
 
 class QCheckBox;
 class QGroupBox;
@@ -64,6 +65,7 @@ private:
   void LoadFromFile();
   void ClearSlot(u8 slot);
   void CreateSkylanderAdvanced();
+  void ModifySkylander();
 
   // Behind the scenes
   void OnEmulationStateChanged(Core::State state);
