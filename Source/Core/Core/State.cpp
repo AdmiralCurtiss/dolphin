@@ -16,7 +16,7 @@
 
 #include <fmt/format.h>
 
-#include <lz4/lib/lz4.h>
+#include <lz4.h>
 
 #include "Common/ChunkFile.h"
 #include "Common/CommonTypes.h"

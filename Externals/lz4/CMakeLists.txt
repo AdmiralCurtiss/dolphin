@@ -1,9 +1,10 @@
-# Disable CLI building, which breaks for Android due to lack of 64-bit support
-SET(LZ4_BUILD_CLI OFF CACHE BOOL "Build lz4 program")
-SET(LZ4_BUILD_LEGACY_LZ4C OFF CACHE BOOL "Build lz4c program with legacy argument support")
+# We only want the static library, nothing else.
+set(LZ4_BUILD_CLI OFF)
+set(LZ4_BUILD_LEGACY_LZ4C OFF)
+set(LZ4_BUNDLED_MODE ON)
 
 add_subdirectory(lz4/build/cmake)
 
-target_include_directories(lz4_static PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
-
+dolphin_disable_warnings_msvc(lz4_static)
 add_library(LZ4::LZ4 ALIAS lz4_static)
+
