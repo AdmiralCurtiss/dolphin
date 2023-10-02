@@ -16,7 +16,7 @@
 
 #include <fmt/format.h>
 
-#include <lzo/lzo1x.h>
+#include <lz4/lib/lz4.h>
 
 #include "Common/ChunkFile.h"
 #include "Common/CommonTypes.h"
@@ -48,23 +48,6 @@
 
 namespace State
 {
-#if defined(__LZO_STRICT_16BIT)
-static const u32 IN_LEN = 8 * 1024u;
-#elif defined(LZO_ARCH_I086) && !defined(LZO_HAVE_MM_HUGE_ARRAY)
-static const u32 IN_LEN = 60 * 1024u;
-#else
-static const u32 IN_LEN = 128 * 1024u;
-#endif
-
-static const u32 OUT_LEN = IN_LEN + (IN_LEN / 16) + 64 + 3;
-
-static unsigned char __LZO_MMODEL out[OUT_LEN];
-
-#define HEAP_ALLOC(var, size)                                                                      \
-  lzo_align_t __LZO_MMODEL var[((size) + (sizeof(lzo_align_t) - 1)) / sizeof(lzo_align_t)]
-
-static HEAP_ALLOC(wrkmem, LZO1X_1_MEM_COMPRESS);
-
 static AfterLoadCallbackFunc s_on_after_load_callback;
 
 // Temporary undo state buffer
@@ -96,7 +79,7 @@ static size_t s_state_writes_in_queue;
 static std::condition_variable s_state_write_queue_is_empty;
 
 // Don't forget to increase this after doing changes on the savestate system
-constexpr u32 STATE_VERSION = 162;  // Last changed in PR 11767
+constexpr u32 STATE_VERSION = 163;  // Last changed in PR 12217
 
 // Maps savestate versions to Dolphin versions.
 // Versions after 42 don't need to be added to this list,
@@ -354,6 +337,25 @@ static std::map<double, int> GetSavedStates()
   return m;
 }
 
+static int CompressBufferToFile(const u8* raw_buffer, u32 max_bytes_to_compress, File::IOFile& f)
+{
+  int bytes_to_compress =
+      static_cast<int>(std::min((u32)LZ4_MAX_INPUT_SIZE, max_bytes_to_compress));
+  int compressed_buffer_size = LZ4_compressBound(bytes_to_compress);
+  auto compressed_buffer = std::make_unique<char[]>(compressed_buffer_size);
+  int compressed_len = LZ4_compress_default((char*)raw_buffer, compressed_buffer.get(),
+                                            bytes_to_compress, compressed_buffer_size);
+
+  if (compressed_len == 0)
+    PanicAlertFmtT("Internal LZ4 Error - compression failed");
+
+  // The size of the data to write is 'compressed_len'
+  f.WriteArray(&compressed_len, 1);
+  f.WriteBytes(compressed_buffer.get(), compressed_len);
+
+  return bytes_to_compress;
+}
+
 static void CompressAndDumpState(CompressAndDumpState_args& save_args)
 {
   const u8* const buffer_data = save_args.buffer_vector.data();
@@ -388,32 +390,15 @@ static void CompressAndDumpState(CompressAndDumpState_args& save_args)
 
   if (header.size != 0)  // non-zero header size means the state is compressed
   {
-    lzo_uint i = 0;
+    u32 total_bytes_compressed = 0;
+
     while (true)
     {
-      lzo_uint32 cur_len = 0;
-      lzo_uint out_len = 0;
-
-      if ((i + IN_LEN) >= buffer_size)
-      {
-        cur_len = (lzo_uint32)(buffer_size - i);
-      }
-      else
-      {
-        cur_len = IN_LEN;
-      }
-
-      if (lzo1x_1_compress(buffer_data + i, cur_len, out, &out_len, wrkmem) != LZO_E_OK)
-        PanicAlertFmtT("Internal LZO Error - compression failed");
-
-      // The size of the data to write is 'out_len'
-      f.WriteArray((lzo_uint32*)&out_len, 1);
-      f.WriteBytes(out, out_len);
-
-      if (cur_len != IN_LEN)
+      int bytes_compressed = CompressBufferToFile(buffer_data + total_bytes_compressed,
+                                                  header.size - total_bytes_compressed, f);
+      total_bytes_compressed += bytes_compressed;
+      if (total_bytes_compressed == header.size)
         break;
-
-      i += cur_len;
     }
   }
   else  // uncompressed
@@ -557,6 +542,31 @@ u64 GetUnixTimeOfSlot(int slot)
   return static_cast<u64>(header.time * MS_PER_SEC) + (DOUBLE_TIME_OFFSET * MS_PER_SEC);
 }
 
+static int DecompressBufferFromFile(const u8* raw_buffer, u32 max_bytes, File::IOFile& f)
+{
+  u32 compressed_data_len;
+  f.ReadArray(&compressed_data_len, 1);
+
+  auto compressed_data = std::make_unique<char[]>(compressed_data_len);
+  f.ReadBytes(compressed_data.get(), compressed_data_len);
+
+  // We need to specify the output buffer's size for safety. This may exceed the positive bound
+  // of int, causing the buffer size to be interpreted as a negative value.
+  u32 max_decompress_size = std::min((u32)LZ4_MAX_INPUT_SIZE, max_bytes);
+
+  int bytes_read = LZ4_decompress_safe(compressed_data.get(), (char*)raw_buffer,
+                                       compressed_data_len, max_decompress_size);
+
+  if (bytes_read < 0)
+  {
+    PanicAlertFmtT("Internal LZ4 Error - decompression failed ({0}, {1}, {2}) \n"
+                   "Try loading the state again",
+                   bytes_read, compressed_data_len, max_decompress_size);
+  }
+
+  return bytes_read;
+}
+
 static void LoadFileStateData(const std::string& filename, std::vector<u8>& ret_data)
 {
   File::IOFile f;
@@ -600,27 +610,18 @@ static void LoadFileStateData(const std::string& filename, std::vector<u8>& ret_
 
     buffer.resize(header.size);
 
-    lzo_uint i = 0;
+    u32 total_bytes_read = 0;
     while (true)
     {
-      lzo_uint32 cur_len = 0;  // number of bytes to read
-      lzo_uint new_len = 0;    // number of bytes to write
-
-      if (!f.ReadArray(&cur_len, 1))
-        break;
-
-      f.ReadBytes(out, cur_len);
-      const int res = lzo1x_decompress(out, cur_len, &buffer[i], &new_len, nullptr);
-      if (res != LZO_E_OK)
-      {
-        // This doesn't seem to happen anymore.
-        PanicAlertFmtT("Internal LZO Error - decompression failed ({0}) ({1}, {2}) \n"
-                       "Try loading the state again",
-                       res, i, new_len);
+      int bytes_read = DecompressBufferFromFile(buffer.data() + total_bytes_read,
+                                                header.size - total_bytes_read, f);
+      if (bytes_read < 0)
         return;
-      }
 
-      i += new_len;
+      total_bytes_read += bytes_read;
+
+      if (total_bytes_read == header.size)
+        break;
     }
   }
   else  // uncompressed
@@ -721,9 +722,6 @@ void SetOnAfterLoadCallback(AfterLoadCallbackFunc callback)
 
 void Init()
 {
-  if (lzo_init() != LZO_E_OK)
-    PanicAlertFmtT("Internal LZO Error - lzo_init() failed");
-
   s_save_thread.Reset("Savestate Worker", [](CompressAndDumpState_args args) {
     CompressAndDumpState(args);
 
