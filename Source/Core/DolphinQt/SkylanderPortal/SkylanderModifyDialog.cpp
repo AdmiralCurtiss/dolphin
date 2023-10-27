@@ -43,11 +43,10 @@ SkylanderModifyDialog::SkylanderModifyDialog(QWidget* parent, u8 slot)
   }
   else
   {
-    auto found = IOS::HLE::USB::list_skylanders.find(std::make_pair(
-        m_figure_data.figure_id, m_figure_data.variant_id));
+    auto found = IOS::HLE::USB::list_skylanders.find(
+        std::make_pair(m_figure_data.figure_id, m_figure_data.variant_id));
     if (found != IOS::HLE::USB::list_skylanders.end())
     {
-
       name = QString::fromStdString(found->second.name);
     }
     else
