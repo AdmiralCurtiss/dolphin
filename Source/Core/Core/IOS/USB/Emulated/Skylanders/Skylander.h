@@ -31,6 +31,19 @@ enum class Game
   TrapTeam,
   Superchargers
 };
+enum class Type : u8
+{
+  Skylander = 1,
+  Giant,
+  Swapper,
+  TrapMaster,
+  Mini,
+  Item,
+  Trophy,
+  Vehicle,
+  Trap,
+  Unknown
+};
 Type NormalizeSkylanderType(Type type);
 enum class Element
 {

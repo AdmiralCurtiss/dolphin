@@ -10,19 +10,8 @@
 
 namespace IOS::HLE::USB
 {
-enum class Type
-{
-  Skylander = 1,
-  Giant,
-  Swapper,
-  TrapMaster,
-  Mini,
-  Item,
-  Trophy,
-  Vehicle,
-  Trap,
-  Unknown
-};
+enum class Type : u8;
+
 struct SkylanderDateTime final
 {
   u8 minute;
