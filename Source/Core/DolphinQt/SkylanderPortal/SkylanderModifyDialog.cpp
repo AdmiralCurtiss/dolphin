@@ -284,54 +284,33 @@ bool SkylanderModifyDialog::PopulateTrophyOptions(QVBoxLayout* layout)
     return false;
   }
 
-  auto* hbox_villain_1 = new QHBoxLayout();
-  auto* label_villain_1 = new QLabel(tr("Captured villain %1:").arg(1));
-  auto* edit_villain_1 = new QCheckBox();
-  edit_villain_1->setChecked(m_figure_data.trophy_data.unlocked_villains & 0b1);
-  hbox_villain_1->addWidget(label_villain_1);
-  hbox_villain_1->addWidget(edit_villain_1);
-  layout->addLayout(hbox_villain_1);
+  constexpr size_t MAX_VILLAINS = 4;
+  std::array<int, MAX_VILLAINS> shift_distances;
 
-  u8 shift_count = 1;
-  if (m_figure_data.figure_id != SEA_TROPHY_ID)
-    shift_count++;
+  if (m_figure_data.figure_id == SEA_TROPHY_ID)
+    shift_distances = {0, 1, 2, 4};
+  else
+    shift_distances = {0, 2, 3, 4};
 
-  auto* hbox_villain_2 = new QHBoxLayout();
-  auto* label_villain_2 = new QLabel(tr("Captured villain %1:").arg(2));
-  auto* edit_villain_2 = new QCheckBox();
-  edit_villain_2->setChecked(m_figure_data.trophy_data.unlocked_villains & (0b1 << shift_count));
-  hbox_villain_2->addWidget(label_villain_2);
-  hbox_villain_2->addWidget(edit_villain_2);
-  layout->addLayout(hbox_villain_2);
+  std::array<QCheckBox*, MAX_VILLAINS> edit_villains;
+  for (size_t i = 0; i < MAX_VILLAINS; ++i)
+  {
+    edit_villains[i] = new QCheckBox();
+    edit_villains[i]->setChecked(static_cast<bool>(m_figure_data.trophy_data.unlocked_villains &
+                                                   (0b1 << shift_distances[i])));
+    auto* const label = new QLabel(tr("Captured villain %1:").arg(i + 1));
+    auto* const hbox = new QHBoxLayout();
+    hbox->addWidget(label);
+    hbox->addWidget(edit_villains[i]);
 
-  shift_count++;
-
-  auto* hbox_villain_3 = new QHBoxLayout();
-  auto* label_villain_3 = new QLabel(tr("Captured villain %1:").arg(3));
-  auto* edit_villain_3 = new QCheckBox();
-  edit_villain_3->setChecked(m_figure_data.trophy_data.unlocked_villains & (0b1 << shift_count));
-  hbox_villain_3->addWidget(label_villain_3);
-  hbox_villain_3->addWidget(edit_villain_3);
-  layout->addLayout(hbox_villain_3);
-
-  shift_count = 4;
-
-  auto* hbox_villain_4 = new QHBoxLayout();
-  auto* label_villain_4 = new QLabel(tr("Captured villain %1:").arg(4));
-  auto* edit_villain_4 = new QCheckBox();
-  edit_villain_4->setChecked(m_figure_data.trophy_data.unlocked_villains & (0b1 << shift_count));
-  hbox_villain_4->addWidget(label_villain_4);
-  hbox_villain_4->addWidget(edit_villain_4);
-  layout->addLayout(hbox_villain_4);
+    layout->addLayout(hbox);
+  }
 
   connect(m_buttons, &QDialogButtonBox::accepted, this, [=, this]() {
     m_figure_data.trophy_data.unlocked_villains = 0x0;
-    m_figure_data.trophy_data.unlocked_villains |= (edit_villain_1->isChecked() ? 0b1 : 0b0);
-    m_figure_data.trophy_data.unlocked_villains |=
-        (edit_villain_2->isChecked() ? 0b1 << ((m_figure_data.figure_id == 3502) ? 1 : 2) : 0b0);
-    m_figure_data.trophy_data.unlocked_villains |=
-        (edit_villain_3->isChecked() ? 0b1 << ((m_figure_data.figure_id == 3502) ? 2 : 3) : 0b0);
-    m_figure_data.trophy_data.unlocked_villains |= (edit_villain_4->isChecked() ? (0b1 << 4) : 0b0);
+    for (size_t i = 0; i < MAX_VILLAINS; ++i)
+      m_figure_data.trophy_data.unlocked_villains |=
+          edit_villains[i]->isChecked() ? (0b1 << shift_distances[i]) : 0b0;
 
     m_figure->SetData(&m_figure_data);
     m_allow_close = true;

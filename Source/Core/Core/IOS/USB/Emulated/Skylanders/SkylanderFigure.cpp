@@ -333,7 +333,6 @@ void SkylanderFigure::SetData(FigureData* figure_data)
     {
       u16 area_offset = (decrypted[0x89] != (decrypted[0x249] + 1U)) ? 0x80 : 0x240;
 
-      figure_data->trophy_data.unlocked_villains = 0xFF;
       memcpy(decrypted.data() + area_offset + 0x14, &figure_data->trophy_data.unlocked_villains, 1);
 
       {
