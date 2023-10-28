@@ -137,11 +137,9 @@ TEST(Skylanders, Checksums)
 
 TEST(Skylanders, ToyCode)
 {
-  std::array<u8, 11> code_chars;
-  ComputeToyCode(
+  std::array<u8, 11> code_chars = ComputeToyCode(
       (static_cast<u64>(Common::BitCastPtr<u32>(decrypted_jaw_breaker.data() + 0x18)) << 32) |
-          Common::BitCastPtr<u32>(decrypted_jaw_breaker.data() + 0x14),
-      &code_chars);
+      Common::BitCastPtr<u32>(decrypted_jaw_breaker.data() + 0x14));
 
   std::string code(code_chars.begin(), code_chars.end());
 

@@ -271,10 +271,11 @@ void SkylanderModifyDialog::PopulateSkylanderOptions(QVBoxLayout* layout)
       else
       {
         QMessageBox::warning(this, tr("Could not save your changes!"),
-                             tr("The file associated to this file was closed! Did you clear the slot before saving?"),
+                             tr("The file associated to this file was closed! Did you clear the "
+                                "slot before saving?"),
                              QMessageBox::Ok);
       }
-      
+
       this->accept();
     }
   });
