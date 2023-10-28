@@ -1182,14 +1182,14 @@ void SkylanderPortal::QueryBlock(u8 sky_num, u8 block, u8* reply_buf)
 
   reply_buf[0] = 'Q';
   reply_buf[2] = block;
-  if (skylander.status & 1)
+  if (skylander.status & Skylander::READY)
   {
     reply_buf[1] = (0x10 | sky_num);
     skylander.figure->GetBlock(block, reply_buf + 3);
   }
   else
   {
-    reply_buf[1] = sky_num;
+    reply_buf[1] = 0x01;
   }
 }
 
@@ -1213,7 +1213,7 @@ void SkylanderPortal::WriteBlock(u8 sky_num, u8 block, const u8* to_write_buf, u
   }
   else
   {
-    reply_buf[1] = sky_num;
+    reply_buf[1] = 0x01;
   }
 }
 
@@ -1232,7 +1232,7 @@ bool SkylanderPortal::RemoveSkylander(u8 sky_num)
     skylander.figure->Close();
   }
 
-  if (skylander.status & 1)
+  if (skylander.status & Skylander::READY)
   {
     skylander.status = Skylander::REMOVING;
     skylander.queued_status.push(Skylander::REMOVING);

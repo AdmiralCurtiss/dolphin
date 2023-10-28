@@ -208,9 +208,9 @@ FigureData SkylanderFigure::GetData() const
                         .month = Common::BitCastPtr<u8>(decrypted.data() + area_offset + 0x53),
                         .year = Common::BitCastPtr<u16>(decrypted.data() + area_offset + 0x54)}};
 
-    ComputeToyCode((static_cast<u64>(Common::BitCastPtr<u32>(decrypted.data() + 0x18)) << 32) |
-                       Common::BitCastPtr<u32>(decrypted.data() + 0x14),
-                   &figure_data.skylander_data.toy_code);
+    figure_data.skylander_data.toy_code =
+        ComputeToyCode((static_cast<u64>(Common::BitCastPtr<u32>(decrypted.data() + 0x18)) << 32) |
+                       Common::BitCastPtr<u32>(decrypted.data() + 0x14));
 
     u16 nickname[16] = {};
 

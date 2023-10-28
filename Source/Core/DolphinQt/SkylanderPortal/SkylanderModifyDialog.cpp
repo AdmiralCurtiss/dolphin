@@ -264,7 +264,17 @@ void SkylanderModifyDialog::PopulateSkylanderOptions(QVBoxLayout* layout)
       nickname.copy(reinterpret_cast<char16_t*>(m_figure_data.skylander_data.nickname.data()),
                     nickname.length());
 
-      m_figure->SetData(&m_figure_data);
+      if (m_figure->FileIsOpen())
+      {
+        m_figure->SetData(&m_figure_data);
+      }
+      else
+      {
+        QMessageBox::warning(this, tr("Could not save your changes!"),
+                             tr("The file associated to this file was closed! Did you clear the slot before saving?"),
+                             QMessageBox::Ok);
+      }
+      
       this->accept();
     }
   });

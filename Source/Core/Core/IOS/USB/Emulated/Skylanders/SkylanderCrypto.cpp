@@ -146,14 +146,13 @@ void ComputeChecksum(ChecksumType type, const u8* data_start, u8* output)
   }
   memcpy(output, &crc, 2);
 }
-void ComputeToyCode(u64 code, std::array<u8, 11>* output)
+std::array<u8, 11> ComputeToyCode(u64 code)
 {
   if (code == 0)
   {
     static constexpr std::array<u8, 11> invalid_code_result{
         static_cast<u8>('N'), static_cast<u8>('/'), static_cast<u8>('A')};
-    *output = invalid_code_result;
-    return;
+    return invalid_code_result;
   }
 
   std::array<u8, 10> code_bytes;
@@ -175,6 +174,6 @@ void ComputeToyCode(u64 code, std::array<u8, 11>* output)
   result[5] = static_cast<u8>('-');
   std::memcpy(&result[6], &code_chars[5], 5);
 
-  *output = result;
+  return result;
 }
 }  // namespace IOS::HLE::USB::SkylanderCrypto
