@@ -152,7 +152,7 @@ bool SkylanderFigure::Create(u16 m_sky_id, u16 m_sky_var)
   memcpy(&m_data[0x1C], &m_sky_var, sizeof(m_sky_var));
 
   // Set checksum
-  ComputeChecksum(ChecksumType::Type0, m_data.data(), m_data.data() + 0x1E);
+  ComputeChecksumType0(m_data.data(), m_data.data() + 0x1E);
 
   PopulateKeys();
 
@@ -297,18 +297,17 @@ void SkylanderFigure::SetData(FigureData* figure_data)
     }
 
     {
-      ComputeChecksum(ChecksumType::Type3, decrypted.data() + area_offset + 0x50,
-                      decrypted.data() + area_offset + 0xA);
-      ComputeChecksum(ChecksumType::Type2, decrypted.data() + area_offset + 0x10,
-                      decrypted.data() + area_offset + 0xC);
+      ComputeChecksumType3(decrypted.data() + area_offset + 0x50,
+                           decrypted.data() + area_offset + 0xA);
+      ComputeChecksumType2(decrypted.data() + area_offset + 0x10,
+                           decrypted.data() + area_offset + 0xC);
       if (decrypted[0x89] == decrypted[0x249])
         decrypted[area_offset + 0x9]++;
       else
       {
         decrypted[area_offset + 0x9] += 2;
       }
-      ComputeChecksum(ChecksumType::Type1, decrypted.data() + area_offset,
-                      decrypted.data() + area_offset + 0xE);
+      ComputeChecksumType1(decrypted.data() + area_offset, decrypted.data() + area_offset + 0xE);
     }
 
     {
@@ -319,13 +318,11 @@ void SkylanderFigure::SetData(FigureData* figure_data)
       else
         decrypted[area_offset + 0x2] += 2;
 
-      ComputeChecksum(ChecksumType::Type6, decrypted.data() + area_offset,
-                      decrypted.data() + area_offset);
+      ComputeChecksumType6(decrypted.data() + area_offset, decrypted.data() + area_offset);
 
       area_offset = (area_offset == 0x110) ? 0x2D0 : 0x110;
 
-      ComputeChecksum(ChecksumType::Type6, decrypted.data() + area_offset,
-                      decrypted.data() + area_offset);
+      ComputeChecksumType6(decrypted.data() + area_offset, decrypted.data() + area_offset);
     }
   }
   else if (figure_data->normalized_type == Type::Trophy)
@@ -336,26 +333,24 @@ void SkylanderFigure::SetData(FigureData* figure_data)
       memcpy(decrypted.data() + area_offset + 0x14, &figure_data->trophy_data.unlocked_villains, 1);
 
       {
-        ComputeChecksum(ChecksumType::Type3, decrypted.data() + area_offset + 0x50,
-                        decrypted.data() + area_offset + 0xA);
-        ComputeChecksum(ChecksumType::Type2, decrypted.data() + area_offset + 0x10,
-                        decrypted.data() + area_offset + 0xC);
+        ComputeChecksumType3(decrypted.data() + area_offset + 0x50,
+                             decrypted.data() + area_offset + 0xA);
+        ComputeChecksumType2(decrypted.data() + area_offset + 0x10,
+                             decrypted.data() + area_offset + 0xC);
         if (decrypted[0x89] == decrypted[0x249])
           decrypted[area_offset + 0x9]++;
         else
           decrypted[area_offset + 0x9] += 2;
-        ComputeChecksum(ChecksumType::Type1, decrypted.data() + area_offset,
-                        decrypted.data() + area_offset + 0xE);
+        ComputeChecksumType1(decrypted.data() + area_offset, decrypted.data() + area_offset + 0xE);
       }
 
       area_offset = (area_offset == 0x80) ? 0x240 : 0x80;
       {
-        ComputeChecksum(ChecksumType::Type3, decrypted.data() + area_offset + 0x50,
-                        decrypted.data() + area_offset + 0xA);
-        ComputeChecksum(ChecksumType::Type2, decrypted.data() + area_offset + 0x10,
-                        decrypted.data() + area_offset + 0xC);
-        ComputeChecksum(ChecksumType::Type1, decrypted.data() + area_offset,
-                        decrypted.data() + area_offset + 0xE);
+        ComputeChecksumType3(decrypted.data() + area_offset + 0x50,
+                             decrypted.data() + area_offset + 0xA);
+        ComputeChecksumType2(decrypted.data() + area_offset + 0x10,
+                             decrypted.data() + area_offset + 0xC);
+        ComputeChecksumType1(decrypted.data() + area_offset, decrypted.data() + area_offset + 0xE);
       }
     }
 
@@ -367,13 +362,11 @@ void SkylanderFigure::SetData(FigureData* figure_data)
       else
         decrypted[area_offset + 0x2] += 2;
 
-      ComputeChecksum(ChecksumType::Type6, decrypted.data() + area_offset,
-                      decrypted.data() + area_offset);
+      ComputeChecksumType6(decrypted.data() + area_offset, decrypted.data() + area_offset);
 
       area_offset = (area_offset == 0x110) ? 0x2D0 : 0x110;
 
-      ComputeChecksum(ChecksumType::Type6, decrypted.data() + area_offset,
-                      decrypted.data() + area_offset);
+      ComputeChecksumType6(decrypted.data() + area_offset, decrypted.data() + area_offset);
     }
   }
 

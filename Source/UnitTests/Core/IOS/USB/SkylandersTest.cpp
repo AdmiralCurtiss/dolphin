@@ -99,7 +99,7 @@ TEST(Skylanders, Keygen)
 TEST(Skylanders, Checksums)
 {
   std::array<u8, 2> actual = {};
-  ComputeChecksum(ChecksumType::Type0, decrypted_jaw_breaker.data(), actual.data());
+  ComputeChecksumType0(decrypted_jaw_breaker.data(), actual.data());
   EXPECT_EQ(Common::BitCastPtr<u16>(decrypted_jaw_breaker.data() + 0x1E),
             Common::BitCastPtr<u16>(actual.data()));
 
@@ -107,27 +107,25 @@ TEST(Skylanders, Checksums)
 
   for (u8 i = 0; i < 2; i++)
   {
-    ComputeChecksum(ChecksumType::Type3, decrypted_jaw_breaker.data() + areaOffset + 0x50,
-                    actual.data());
+    ComputeChecksumType3(decrypted_jaw_breaker.data() + areaOffset + 0x50, actual.data());
     EXPECT_EQ(Common::BitCastPtr<u16>(decrypted_jaw_breaker.data() + areaOffset + 0xA),
               Common::BitCastPtr<u16>(actual.data()));
 
-    ComputeChecksum(ChecksumType::Type2, decrypted_jaw_breaker.data() + areaOffset + 0x10,
-                    actual.data());
+    ComputeChecksumType2(decrypted_jaw_breaker.data() + areaOffset + 0x10, actual.data());
     EXPECT_EQ(Common::BitCastPtr<u16>(decrypted_jaw_breaker.data() + areaOffset + 0xC),
               Common::BitCastPtr<u16>(actual.data()));
 
-    ComputeChecksum(ChecksumType::Type1, decrypted_jaw_breaker.data() + areaOffset, actual.data());
+    ComputeChecksumType1(decrypted_jaw_breaker.data() + areaOffset, actual.data());
     EXPECT_EQ(Common::BitCastPtr<u16>(decrypted_jaw_breaker.data() + areaOffset + 0xE),
               Common::BitCastPtr<u16>(actual.data()));
 
-    ComputeChecksum(ChecksumType::Type1, decrypted_jaw_breaker.data() + areaOffset, actual.data());
+    ComputeChecksumType1(decrypted_jaw_breaker.data() + areaOffset, actual.data());
     EXPECT_EQ(Common::BitCastPtr<u16>(decrypted_jaw_breaker.data() + areaOffset + 0xE),
               Common::BitCastPtr<u16>(actual.data()));
 
     areaOffset += 0x90;
 
-    ComputeChecksum(ChecksumType::Type6, decrypted_jaw_breaker.data() + areaOffset, actual.data());
+    ComputeChecksumType6(decrypted_jaw_breaker.data() + areaOffset, actual.data());
     EXPECT_EQ(Common::BitCastPtr<u16>(decrypted_jaw_breaker.data() + areaOffset),
               Common::BitCastPtr<u16>(actual.data()));
 

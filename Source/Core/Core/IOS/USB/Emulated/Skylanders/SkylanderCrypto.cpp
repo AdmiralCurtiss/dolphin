@@ -5,8 +5,8 @@
 
 #include <string>
 
-#include <Common/BitUtils.h>
-#include <Common/Swap.h>
+#include "Common/BitUtils.h"
+#include "Common/Swap.h"
 
 namespace IOS::HLE::USB::SkylanderCrypto
 {
@@ -86,64 +86,58 @@ u64 CalculateKeyA(u8 sector, std::span<const u8, 0x4> nuid)
 
   return little_endian_crc;
 }
-void ComputeChecksum(ChecksumType type, const u8* data_start, u8* output)
+void ComputeChecksumType0(const u8* data_start, u8* output)
+{
+  u16 crc = 0xFFFF;
+  std::array<u8, 0x1E> input = {};
+  memcpy(input.data(), data_start, 0x1E);
+
+  crc = ComputeCRC16(crc, input);
+  memcpy(output, &crc, 2);
+}
+void ComputeChecksumType1(const u8* data_start, u8* output)
 {
   u16 crc = 0xFFFF;
 
-  switch (type)
-  {
-  case ChecksumType::Type0:
-  {
-    std::array<u8, 0x1E> input = {};
-    memcpy(input.data(), data_start, 0x1E);
+  std::array<u8, 0x10> input = {};
+  memcpy(input.data(), data_start, 0x10);
+  input[0xE] = 0x05;
+  input[0xF] = 0x00;
 
-    crc = ComputeCRC16(crc, input);
-    break;
-  }
-  case ChecksumType::Type3:
-  {
-    std::array<u8, 0x110> input = {};
-    memcpy(input.data(), data_start, 0x20);
-    memcpy(input.data() + 0x20, data_start + 0x30, 0x10);
+  crc = ComputeCRC16(crc, input);
+  memcpy(output, &crc, 2);
+}
+void ComputeChecksumType2(const u8* data_start, u8* output)
+{
+  u16 crc = 0xFFFF;
+  std::array<u8, 0x30> input = {};
+  memcpy(input.data(), data_start, 0x20);
+  memcpy(input.data() + 0x20, data_start + 0x30, 0x10);
 
-    crc = ComputeCRC16(crc, input);
-    break;
-  }
-  case ChecksumType::Type2:
-  {
-    std::array<u8, 0x30> input = {};
-    memcpy(input.data(), data_start, 0x20);
-    memcpy(input.data() + 0x20, data_start + 0x30, 0x10);
+  crc = ComputeCRC16(crc, input);
+  memcpy(output, &crc, 2);
+}
+void ComputeChecksumType3(const u8* data_start, u8* output)
+{
+  u16 crc = 0xFFFF;
+  std::array<u8, 0x110> input = {};
+  memcpy(input.data(), data_start, 0x20);
+  memcpy(input.data() + 0x20, data_start + 0x30, 0x10);
 
-    crc = ComputeCRC16(crc, input);
-    break;
-  }
-  case ChecksumType::Type1:
-  {
-    std::array<u8, 0x10> input = {};
-    memcpy(input.data(), data_start, 0x10);
-    input[0xE] = 0x05;
-    input[0xF] = 0x00;
+  crc = ComputeCRC16(crc, input);
+  memcpy(output, &crc, 2);
+}
+void ComputeChecksumType6(const u8* data_start, u8* output)
+{
+  u16 crc = 0xFFFF;
+  std::array<u8, 0x40> input = {};
+  memcpy(input.data(), data_start, 0x20);
+  memcpy(input.data() + 0x20, data_start + 0x30, 0x20);
 
-    crc = ComputeCRC16(crc, input);
-    break;
-  }
-  case ChecksumType::Type6:
-  {
-    std::array<u8, 0x40> input = {};
-    memcpy(input.data(), data_start, 0x20);
+  input[0x0] = 0x06;
+  input[0x1] = 0x01;
 
-    memcpy(input.data() + 0x20, data_start + 0x30, 0x20);
-
-    input[0x0] = 0x06;
-    input[0x1] = 0x01;
-
-    crc = ComputeCRC16(crc, input);
-    break;
-  }
-  default:
-    break;
-  }
+  crc = ComputeCRC16(crc, input);
   memcpy(output, &crc, 2);
 }
 std::array<u8, 11> ComputeToyCode(u64 code)
