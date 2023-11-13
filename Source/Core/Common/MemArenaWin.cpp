@@ -443,39 +443,58 @@ LazyMemoryRegion::~LazyMemoryRegion()
 
 void* LazyMemoryRegion::Create(size_t size)
 {
+  ASSERT(!m_memory_handle);
   ASSERT(!m_memory);
 
   if (size == 0)
     return nullptr;
 
-  void* memory = VirtualAlloc(nullptr, size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
-  if (!memory)
+  void* handle = CreateFileMapping(INVALID_HANDLE_VALUE, nullptr, PAGE_READWRITE,
+                                   GetHighDWORD(size), GetLowDWORD(size), nullptr);
+  if (!handle)
   {
-    NOTICE_LOG_FMT(MEMMAP, "Memory allocation of {} bytes failed.", size);
+    NOTICE_LOG_FMT(MEMMAP, "Memory allocation of {} bytes failed: {}", size, GetLastErrorString());
     return nullptr;
   }
 
+  void* memory = MapViewOfFileEx(handle, FILE_MAP_ALL_ACCESS, 0, 0, size, nullptr);
+  if (!memory)
+  {
+    NOTICE_LOG_FMT(MEMMAP, "Mapping {} bytes into memory failed: {}", size, GetLastErrorString());
+    CloseHandle(handle);
+    return nullptr;
+  }
+
+  m_memory_handle = handle;
   m_memory = memory;
   m_size = size;
 
   return memory;
 }
 
-void LazyMemoryRegion::Clear()
+void* LazyMemoryRegion::Clear()
 {
+  ASSERT(m_memory_handle);
   ASSERT(m_memory);
 
-  VirtualFree(m_memory, m_size, MEM_DECOMMIT);
-  VirtualAlloc(m_memory, m_size, MEM_COMMIT, PAGE_READWRITE);
+  const size_t size = m_size;
+  Release();
+  return Create(size);
 }
 
 void LazyMemoryRegion::Release()
 {
   if (m_memory)
   {
-    VirtualFree(m_memory, 0, MEM_RELEASE);
+    UnmapViewOfFile(m_memory);
     m_memory = nullptr;
     m_size = 0;
+  }
+
+  if (m_memory_handle)
+  {
+    CloseHandle(m_memory_handle);
+    m_memory_handle = nullptr;
   }
 }
 

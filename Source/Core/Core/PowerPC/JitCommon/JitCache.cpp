@@ -79,7 +79,7 @@ void JitBaseBlockCache::Clear()
   valid_block.ClearAll();
 
   if (m_entry_points_ptr)
-    m_entry_points_arena.Clear();
+    m_entry_points_ptr = reinterpret_cast<u8**>(m_entry_points_arena.Clear());
 }
 
 void JitBaseBlockCache::Reset()

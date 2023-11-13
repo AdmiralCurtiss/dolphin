@@ -146,8 +146,11 @@ public:
   ///
   /// Reset the memory region back to zero, throwing away any mapped pages.
   /// This can only be called after a successful call to Create().
+  /// On Windows this may reallocate to a new location in memory.
   ///
-  void Clear();
+  /// @return The address the region was mapped at. Returns nullptr on failure.
+  ///
+  void* Clear();
 
   ///
   /// Release the memory previously reserved with Create(). After this call the pointer that was
@@ -156,6 +159,9 @@ public:
   void Release();
 
 private:
+#ifdef _WIN32
+  void* m_memory_handle = nullptr;
+#endif
   void* m_memory = nullptr;
   size_t m_size = 0;
 };
