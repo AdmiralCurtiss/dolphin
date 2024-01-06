@@ -1,11 +1,10 @@
 #ifndef _MULTIPART_PARSER_H_
 #define _MULTIPART_PARSER_H_
 
+#include <cstddef>
 #include <cstring>
 #include <functional>
-#include <stdexcept>
 #include <string>
-#include <sys/types.h>
 
 class MultipartParser {
 public:
@@ -15,13 +14,15 @@ public:
   std::string boundary;
 
 private:
-  static const char CR = 13;
-  static const char LF = 10;
-  static const char SPACE = 32;
-  static const char HYPHEN = 45;
-  static const char COLON = 58;
-  static const char SEMICOLON = 59;
-  static const size_t UNMARKED = (size_t)-1;
+  static constexpr char LF = 10;
+  static constexpr char CR = 13;
+  static constexpr char SPACE = 32;
+  static constexpr char HYPHEN = 45;
+  static constexpr char COLON = 58;
+  static constexpr char SEMICOLON = 59;
+  static constexpr char A = 97;
+  static constexpr char Z = 122;
+  static constexpr size_t UNMARKED = (size_t)-1;
 
   enum State {
     ERROR,
@@ -41,29 +42,29 @@ private:
 
   enum Flags { PART_BOUNDARY = 1, LAST_BOUNDARY = 2 };
 
-  const char *boundaryData;
-  size_t boundarySize;
-  bool boundaryIndex[256];
-  char *lookbehind;
-  size_t lookbehindSize;
-  State state;
-  int flags;
-  size_t index;
-  size_t headerFieldMark;
-  size_t headerValueMark;
-  size_t partDataMark;
-  const char *errorReason;
+  const char* boundaryData = nullptr;
+  size_t boundarySize = 0;
+  bool boundaryIndex[256]{};
+  char* lookbehind = nullptr;
+  size_t lookbehindSize = 0;
+  State state = ERROR;
+  int flags = 0;
+  size_t index = 0;
+  size_t headerFieldMark = 0;
+  size_t headerValueMark = 0;
+  size_t partDataMark = 0;
+  const char* errorReason = nullptr;
 
   void resetCallbacks() {
-    onPartBegin = NULL;
-    onHeaderField = NULL;
-    onHeaderValue = NULL;
-    onHeaderEnd = NULL;
-    onHeadersEnd = NULL;
-    onPartData = NULL;
-    onPartEnd = NULL;
-    onEnd = NULL;
-    userData = NULL;
+    onPartBegin = nullptr;
+    onHeaderField = nullptr;
+    onHeaderValue = nullptr;
+    onHeaderEnd = nullptr;
+    onHeadersEnd = nullptr;
+    onPartData = nullptr;
+    onPartEnd = nullptr;
+    onEnd = nullptr;
+    userData = nullptr;
   }
 
   void indexBoundary() {
@@ -77,12 +78,12 @@ private:
     }
   }
 
-  void callback(Callback cb, const char *buffer = NULL, size_t start = UNMARKED,
+  void callback(Callback cb, const char *buffer = nullptr, size_t start = UNMARKED,
                 size_t end = UNMARKED, bool allowEmpty = false) {
     if (start != UNMARKED && start == end && !allowEmpty) {
       return;
     }
-    if (cb != NULL) {
+    if (cb) {
       cb(buffer, start, end, userData);
     }
   }
@@ -173,6 +174,7 @@ private:
           callback(onPartEnd);
           callback(onEnd);
           _state = END;
+          _flags = 0;
         } else {
           _index = 0;
         }
@@ -180,12 +182,14 @@ private:
         _index = 0;
       }
     } else if (_index - 2 == boundarySize) {
+      // NOTE: this branch is not in the upstream js version
       if (c == CR) {
         _index++;
       } else {
         _index = 0;
       }
     } else if (_index - boundarySize == 3) {
+      // NOTE: this branch is not in the upstream js version
       _index = 0;
       if (c == LF) {
         callback(onPartEnd);
@@ -229,13 +233,13 @@ public:
   void *userData;
 
   MultipartParser() {
-    lookbehind = NULL;
+    lookbehind = nullptr;
     resetCallbacks();
     reset();
   }
 
   MultipartParser(const std::string &boundary) {
-    lookbehind = NULL;
+    lookbehind = nullptr;
     resetCallbacks();
     setBoundary(boundary);
   }
@@ -248,7 +252,7 @@ public:
     boundary.clear();
     boundaryData = boundary.c_str();
     boundarySize = 0;
-    lookbehind = NULL;
+    lookbehind = nullptr;
     lookbehindSize = 0;
     flags = 0;
     index = 0;
@@ -280,42 +284,53 @@ public:
     size_t prevIndex = this->index;
     size_t _index = this->index;
     size_t boundaryEnd = boundarySize - 1;
-    size_t i;
-    char c, cl;
+    size_t i = 0;
+    char c = 0;
+    char cl = 0;
 
     for (i = 0; i < len; i++) {
       c = buffer[i];
 
       switch (_state) {
       case ERROR:
+      default:
+        setError("Parser not initialized correctly.");
         return i;
       case START:
         _index = 0;
         _state = START_BOUNDARY;
       case START_BOUNDARY:
         if (_index == boundarySize - 2) {
-          if (c != CR) {
-            setError("Malformed. Expected CR after boundary.");
+          if (c == HYPHEN) {
+            _flags |= LAST_BOUNDARY;
+          } else if (c != CR) {
+            setError("Malformed. Expected CR or HYPHEN after boundary.");
             return i;
           }
           _index++;
           break;
         } else if (_index - 1 == boundarySize - 2) {
-          if (c != LF) {
-            setError("Malformed. Expected LF after boundary CR.");
+          if (_flags & LAST_BOUNDARY && c == HYPHEN) {
+            callback(onEnd);
+            _state = END;
+            _flags = 0;
+          } else if (!(_flags & LAST_BOUNDARY) && c == LF) {
+            _index = 0;
+            callback(onPartBegin);
+            _state = HEADER_FIELD_START;
+          } else {
+            setError("Malformed. Expected LF after boundary CR or HYPHEN after boundary HYPHEN.");
             return i;
           }
-          _index = 0;
-          callback(onPartBegin);
-          _state = HEADER_FIELD_START;
           break;
         }
+
         if (c != boundary[_index + 2]) {
-          setError(
-              "Malformed. Found different boundary data than the given one.");
-          return i;
+          _index = -2;
         }
-        _index++;
+        if (c == boundary[_index + 2]) {
+          _index++;
+        }
         break;
       case HEADER_FIELD_START:
         _state = HEADER_FIELD;
@@ -345,7 +360,7 @@ public:
         }
 
         cl = lower(c);
-        if (cl < 'a' || cl > 'z') {
+        if (cl < A || cl > Z) {
           setError("Malformed header name.");
           return i;
         }
@@ -358,7 +373,7 @@ public:
         headerValueMark = i;
         _state = HEADER_VALUE;
       case HEADER_VALUE:
-        if (c == CR && buffer[i - 1] != SEMICOLON) {
+        if (c == CR && buffer[i - 1] != SEMICOLON) { // NOTE: semicolon check is not in upstream js version
           dataCallback(onHeaderValue, headerValueMark, buffer, i, len, true,
                        true);
           callback(onHeaderEnd);
@@ -391,8 +406,6 @@ public:
         break;
       case END:
         break;
-      default:
-        return i;
       }
     }
 
