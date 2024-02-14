@@ -12,8 +12,10 @@
 #include <rcheevos/include/rc_api_info.h>
 #include <rcheevos/include/rc_hash.h>
 
+#include "Common/HttpRequest.h"
 #include "Common/Image.h"
 #include "Common/Logging/Log.h"
+#include "Common/Version.h"
 #include "Common/WorkQueueThread.h"
 #include "Core/Config/AchievementSettings.h"
 #include "Core/Core.h"
@@ -22,6 +24,9 @@
 #include "DiscIO/Blob.h"
 #include "VideoCommon/OnScreenDisplay.h"
 #include "VideoCommon/VideoEvents.h"
+
+static const Common::HttpRequest::Headers USER_AGENT_HEADER = {
+    {"User-Agent", Common::GetUserAgentStr()}};
 
 static constexpr bool hardcore_mode_enabled = false;
 
