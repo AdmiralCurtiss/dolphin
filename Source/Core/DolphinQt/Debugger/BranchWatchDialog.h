@@ -92,6 +92,9 @@ private:
   void OnTableSetBLR();
   void OnTableSetNOP();
   void OnTableCopyAddress();
+  void OnTableSetBreakpointBreak();
+  void OnTableSetBreakpointLog();
+  void OnTableSetBreakpointBoth();
 
   void SaveSettings();
 
@@ -105,6 +108,7 @@ private:
   void Load(const Core::CPUThreadGuard& guard, const std::string& filepath);
   void AutoSave(const Core::CPUThreadGuard& guard);
   void SetStubPatches(u32 value) const;
+  void SetBreakpoints(bool break_on_hit, bool log_on_hit) const;
 
   [[nodiscard]] QMenu* GetTableContextMenu(const QModelIndex& index);
 
@@ -118,6 +122,7 @@ private:
   QAction* m_act_insert_nop;
   QAction* m_act_insert_blr;
   QAction* m_act_copy_address;
+  QMenu* m_mnu_set_breakpoint;
   QMenu* m_mnu_table_context = nullptr;
   QMenu* m_mnu_column_visibility;
 

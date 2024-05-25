@@ -864,6 +864,21 @@ void BranchWatchDialog::OnTableCopyAddress()
   QApplication::clipboard()->setText(text);
 }
 
+void BranchWatchDialog::OnTableSetBreakpointBreak()
+{
+  SetBreakpoints(true, false);
+}
+
+void BranchWatchDialog::OnTableSetBreakpointLog()
+{
+  SetBreakpoints(false, true);
+}
+
+void BranchWatchDialog::OnTableSetBreakpointBoth()
+{
+  SetBreakpoints(true, true);
+}
+
 void BranchWatchDialog::SaveSettings()
 {
   auto& settings = Settings::GetQSettings();
@@ -972,6 +987,18 @@ void BranchWatchDialog::SetStubPatches(u32 value) const
   m_code_widget->Update();
 }
 
+void BranchWatchDialog::SetBreakpoints(bool break_on_hit, bool log_on_hit) const
+{
+  auto& breakpoints = m_system.GetPowerPC().GetBreakPoints();
+  for (const QModelIndex& index : m_index_list_temp)
+  {
+    const u32 address = m_table_proxy->data(index, UserRole::ClickRole).value<u32>();
+    breakpoints.Add(address, false, break_on_hit, log_on_hit, {});
+  }
+  emit m_code_widget->BreakpointsChanged();
+  m_code_widget->Update();
+}
+
 QMenu* BranchWatchDialog::GetTableContextMenu(const QModelIndex& index)
 {
   if (m_mnu_table_context == nullptr)
@@ -984,6 +1011,15 @@ QMenu* BranchWatchDialog::GetTableContextMenu(const QModelIndex& index)
         m_mnu_table_context->addAction(tr("Insert &BLR"), this, &BranchWatchDialog::OnTableSetBLR);
     m_act_copy_address = m_mnu_table_context->addAction(tr("&Copy Address"), this,
                                                         &BranchWatchDialog::OnTableCopyAddress);
+
+    m_mnu_set_breakpoint = new QMenu(tr("Set Brea&kpoint"));
+    m_mnu_set_breakpoint->addAction(tr("&Break On Hit"), this,
+                                    &BranchWatchDialog::OnTableSetBreakpointBreak);
+    m_mnu_set_breakpoint->addAction(tr("&Log On Hit"), this,
+                                    &BranchWatchDialog::OnTableSetBreakpointLog);
+    m_mnu_set_breakpoint->addAction(tr("Break &And Log On Hit"), this,
+                                    &BranchWatchDialog::OnTableSetBreakpointBoth);
+    m_mnu_table_context->addMenu(m_mnu_set_breakpoint);
   }
 
   bool supported_column = true;
@@ -994,6 +1030,7 @@ QMenu* BranchWatchDialog::GetTableContextMenu(const QModelIndex& index)
     m_act_insert_nop->setVisible(true);
     m_act_insert_nop->setEnabled(Core::GetState(m_system) != Core::State::Uninitialized);
     m_act_copy_address->setEnabled(true);
+    m_mnu_set_breakpoint->setEnabled(true);
     break;
   case Column::Destination:
   {
@@ -1008,6 +1045,7 @@ QMenu* BranchWatchDialog::GetTableContextMenu(const QModelIndex& index)
             });
     m_act_insert_blr->setEnabled(all_branches_save_lr);
     m_act_copy_address->setEnabled(true);
+    m_mnu_set_breakpoint->setEnabled(true);
     break;
   }
   case Column::OriginSymbol:
@@ -1023,6 +1061,7 @@ QMenu* BranchWatchDialog::GetTableContextMenu(const QModelIndex& index)
                     });
     m_act_insert_blr->setEnabled(all_symbols_valid);
     m_act_copy_address->setEnabled(all_symbols_valid);
+    m_mnu_set_breakpoint->setEnabled(all_symbols_valid);
     break;
   }
   default:
@@ -1032,5 +1071,6 @@ QMenu* BranchWatchDialog::GetTableContextMenu(const QModelIndex& index)
     break;
   }
   m_act_copy_address->setVisible(supported_column);
+  m_mnu_set_breakpoint->menuAction()->setVisible(supported_column);
   return m_mnu_table_context;
 }
