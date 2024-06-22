@@ -101,6 +101,8 @@ if(WIN32)
     ControllerInterface/DInput/XInputFilter.h
     ControllerInterface/Win32/Win32.cpp
     ControllerInterface/Win32/Win32.h
+    ControllerInterface/Win32/Win32Keyboard.cpp
+    ControllerInterface/Win32/Win32Keyboard.h
     ControllerInterface/WGInput/WGInput.cpp
     ControllerInterface/WGInput/WGInput.h
     ControllerInterface/XInput/XInput.cpp

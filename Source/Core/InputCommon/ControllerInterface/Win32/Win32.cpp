@@ -16,6 +16,7 @@
 #include "Common/Logging/Log.h"
 #include "InputCommon/ControllerInterface/DInput/DInput.h"
 #include "InputCommon/ControllerInterface/WGInput/WGInput.h"
+#include "InputCommon/ControllerInterface/Win32/Win32Keyboard.h"
 #include "InputCommon/ControllerInterface/XInput/XInput.h"
 
 #pragma comment(lib, "OneCoreUAP.Lib")
@@ -101,6 +102,7 @@ void InputBackend::PopulateDevices()
   ciface::DInput::PopulateDevices(GetHWND());
   ciface::XInput::PopulateDevices();
   ciface::WGInput::PopulateDevices();
+  ciface::Win32Keyboard::PopulateDevices();
 }
 
 void InputBackend::HandleWindowChange()
