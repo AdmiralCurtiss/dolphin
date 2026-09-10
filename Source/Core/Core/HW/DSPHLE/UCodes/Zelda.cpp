@@ -628,7 +628,9 @@ void ZeldaUCode::RenderAudio()
     if (m_rendering_curr_voice == 0)
       m_renderer.PrepareFrame();
 
-    while (m_rendering_curr_voice < m_rendering_voices_per_frame)
+    const u16 number_of_voices = std::min(m_rendering_voices_per_frame,
+                                          static_cast<u16>(m_sync_voice_skip_flags.size() << 4));
+    while (m_rendering_curr_voice < number_of_voices)
     {
       // If we are not meant to render this voice yet, go back to message
       // processing.
